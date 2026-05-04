@@ -34,6 +34,9 @@ jobs:
       - name: Biome check
         run: pnpm lint
 
+      - name: License headers
+        run: pnpm check:licenses
+
   test:
     name: Test / ${{ matrix.os }}
     needs: lint

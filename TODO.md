@@ -34,7 +34,7 @@ When you complete a task and discover follow-ups, append them under the relevant
 - [x] **Add Biome config.** Files: `biome.json`. Lint + format. Acceptance: `pnpm biome check .` passes on the empty repo. **(haiku)**
 - [x] **Add TypeScript base config.** Files: `tsconfig.base.json`, per-package `tsconfig.json` extends. Strict mode on, `verbatimModuleSyntax: true`. Acceptance: `tsc --noEmit` clean. **(haiku)**
 - [x] **Add Vitest workspace config.** Files: `vitest.config.ts`. Acceptance: `pnpm test` runs and reports 0 tests. **(haiku)**
-- [ ] **Add GitHub Actions CI matrix.** Files: `.github/workflows/ci.yml`. Matrix over `ubuntu-latest` (amd64), `ubuntu-22.04-arm64` (arm64), `macos-14` (Apple Silicon). Steps: install pnpm, cache, lint, typecheck, test, build. Acceptance: green CI on a no-op PR. **(sonnet)**
+- [x] **Add GitHub Actions CI matrix.** Files: `.github/workflows/ci.yml`. Matrix over `ubuntu-latest` (amd64), `ubuntu-24.04-arm` (arm64), `macos-14` (Apple Silicon). Steps: install pnpm, cache, lint, typecheck, test, build. Acceptance: green CI on a no-op PR. **(sonnet)**
 - [ ] **Add CONTRIBUTING.md and CODE_OF_CONDUCT.md.** Cover AGPL implications, no-CLA stance, accessibility expectations. **(haiku)**
 - [ ] **Add LICENSE headers script.** Tool that adds an SPDX `// SPDX-License-Identifier: AGPL-3.0-or-later` to every source file in CI. Files: `tools/scripts/add-license-headers.ts`. **(haiku)**
 
