@@ -57,6 +57,16 @@
   },
   "overrides": [
     {
+      "includes": ["**/*.config.ts", "**/*.config.js", "**/*.config.mjs"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": [
         "apps/web/src/app/**/page.tsx",
         "apps/web/src/app/**/layout.tsx",
