@@ -52,7 +52,7 @@ This document describes *what* commshub99 is and *how* it is built. For *why*, s
 | Real-time        | Server-Sent Events                           | Simpler than websockets, sufficient for new-message and draft-state pushes, works through reverse proxies.      |
 | Tests            | Vitest (unit/integration) + Playwright (e2e) | Vitest aligns with contacts-mcp; Playwright for accessibility audits via axe.                                   |
 | Lint / format    | Biome                                        | One tool replaces ESLint + Prettier; faster CI.                                                                 |
-| Package manager  | pnpm + workspaces                            | Reliable hoisting, smaller node_modules. Turborepo for task graph.                                              |
+| Package manager  | Bun workspaces                              | One JavaScript toolchain for installs and scripts. Turborepo handles the task graph.                            |
 | CI               | GitHub Actions                               | Matrix: linux-amd64, linux-arm64, macos-arm64.                                                                  |
 | Container        | Distroless Node base image, multi-arch       | Minimal attack surface, AMD64 + ARM64 builds.                                                                   |
 

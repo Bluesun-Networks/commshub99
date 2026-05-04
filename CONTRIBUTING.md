@@ -21,20 +21,20 @@ Pick the next unchecked item from [TODO.md](TODO.md). If you want to work on som
 ## Development setup
 
 ```bash
-pnpm install
+bun install
 cp .env.example .env        # set INITIAL_ADMIN_EMAIL, IMSG_DATA_DIR
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
+bun run db:migrate
+bun run db:seed
+bun run dev
 ```
 
 ## Before opening a PR
 
 ```bash
-pnpm lint        # Biome check — must pass
-pnpm typecheck   # tsc --noEmit — must pass
-pnpm test        # Vitest — must pass
-pnpm build       # Turbo — must be clean
+bun run lint        # Biome check — must pass
+bun run typecheck   # tsc --noEmit — must pass
+bun run test        # Vitest — must pass
+bun run build       # Turbo — must be clean
 ```
 
 CI runs all four on every PR across linux-amd64, linux-arm64, and macOS Apple Silicon.

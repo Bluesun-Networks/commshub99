@@ -41,7 +41,7 @@ See [PLAN.md § Stack](PLAN.md#stack) for the full table. The compressed version
 - better-auth
 - Vitest + Playwright + axe-core
 - Biome (lint + format, no ESLint, no Prettier)
-- pnpm workspaces + Turborepo
+- Bun workspaces + Turborepo
 
 ## Repository layout
 
@@ -60,7 +60,7 @@ See [PLAN.md § Repository layout](PLAN.md#repository-layout). Cliff notes:
 
 ### Code style
 
-- **Biome formats and lints.** Run `pnpm lint`. Don't argue with the formatter.
+- **Biome formats and lints.** Run `bun run lint`. Don't argue with the formatter.
 - **Strict TypeScript.** No `any`. No `as` unless commenting why. No `// @ts-expect-error` without an explanation and a tracked issue.
 - **Zod schemas double as types.** `type Foo = z.infer<typeof FooSchema>`. Don't write a TS type and a Zod schema separately.
 - **Imports** sorted by Biome. Workspace imports use the package name (`@commshub99/core`), not relative paths across packages.
@@ -137,8 +137,8 @@ If you need a query that the schema doesn't easily support, **don't add a column
 ### Adding a Drizzle migration
 
 ```bash
-pnpm --filter @commshub99/db db:generate   # creates SQL in packages/db/migrations
-pnpm --filter @commshub99/db db:migrate    # applies to local DB
+bun --filter @commshub99/db run db:generate   # creates SQL in packages/db/migrations
+bun --filter @commshub99/db run db:migrate    # applies to local DB
 ```
 
 Never edit a migration after it's merged. Add a new one to fix.
@@ -146,20 +146,20 @@ Never edit a migration after it's merged. Add a new one to fix.
 ### Running locally
 
 ```bash
-pnpm install
+bun install
 cp .env.example .env                       # set INITIAL_ADMIN_EMAIL, IMSG_DATA_DIR
-pnpm db:migrate
-pnpm db:seed
-pnpm dev                                   # starts apps/web on :3000
+bun run db:migrate
+bun run db:seed
+bun run dev                               # starts apps/web on :3000
 ```
 
 ### Running tests
 
 ```bash
-pnpm test              # unit + integration via Vitest
-pnpm test:e2e          # Playwright e2e (requires dev server)
-pnpm lint              # Biome
-pnpm typecheck         # tsc --noEmit
+bun run test          # unit + integration via Vitest
+bun run test:e2e      # Playwright e2e (requires dev server)
+bun run lint          # Biome
+bun run typecheck     # tsc --noEmit
 ```
 
 CI runs all four on every PR. Run them locally before pushing.
@@ -178,7 +178,7 @@ CI runs all four on every PR. Run them locally before pushing.
 - Reading any file in this repo or in `~/src/imsg-agent`, `~/src/contacts-mcp`.
 - Reading `~/imsg-data/imessage.sqlite` (read-only, ever).
 - Writing files inside this repo's worktree.
-- Running `pnpm`, `node`, `bun`, `git status`, `git diff`, `git log`.
+- Running `bun`, `node`, `git status`, `git diff`, `git log`.
 - Running tests, builds, linters.
 
 **Ask before doing**:

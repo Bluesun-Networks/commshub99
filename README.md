@@ -64,18 +64,18 @@ Full architecture in [PLAN.md](PLAN.md).
 
 ## Stack
 
-TypeScript end-to-end. Next.js 15 + React 19 for the web app. Drizzle + SQLite for the hub's own data. better-auth for sessions and roles. `@modelcontextprotocol/sdk` for both MCP server and client. Ink for the TUI. pnpm + Turborepo. Biome for lint/format. Vitest + Playwright for tests. Multi-arch CI (linux-amd64, linux-arm64, macos-arm64).
+TypeScript end-to-end. Next.js 15 + React 19 for the web app. Drizzle + SQLite for the hub's own data. better-auth for sessions and roles. `@modelcontextprotocol/sdk` for both MCP server and client. Ink for the TUI. Bun + Turborepo. Biome for lint/format. Vitest + Playwright for tests. Multi-arch CI (linux-amd64, linux-arm64, macos-arm64).
 
 Full table in [PLAN.md § Stack](PLAN.md#stack).
 
 ## Running locally (after v0.1 lands)
 
 ```bash
-pnpm install
+bun install
 cp .env.example .env                # set INITIAL_ADMIN_EMAIL, IMSG_DATA_DIR
-pnpm db:migrate
-pnpm db:seed
-pnpm dev                            # apps/web on :3000
+bun run db:migrate
+bun run db:seed
+bun run dev                        # apps/web on :3000
 ```
 
 ## Contributing

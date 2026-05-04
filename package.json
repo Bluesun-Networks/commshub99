@@ -2,7 +2,7 @@
   "name": "commshub99",
   "version": "0.0.1",
   "private": true,
-  "packageManager": "pnpm@11.0.3",
+  "packageManager": "bun@1.3.8",
   "engines": {
     "node": ">=22"
   },
@@ -25,5 +25,10 @@
     "turbo": "^2.5.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
-  }
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/adapters/*"
+  ]
 }

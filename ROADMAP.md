@@ -9,7 +9,7 @@ Milestones are defined by *what a user can do*, not by *what code exists*. Each 
 **User can:** sign in to the web UI as admin, see the list of recent iMessage conversations enriched with contact names, open a conversation and read its message history.
 
 **Engineering scope:**
-- Monorepo bootstrap: pnpm workspaces, Turborepo, Biome, Vitest, Playwright, GitHub Actions matrix (linux-amd64, linux-arm64, macos-arm64).
+- Monorepo bootstrap: Bun workspaces, Turborepo, Biome, Vitest, Playwright, GitHub Actions matrix (linux-amd64, linux-arm64, macos-arm64).
 - `apps/web` Next.js skeleton with Tailwind + shadcn/ui, Essentials/Power layout shell.
 - `packages/db` Drizzle schema for `users`, `sessions`, `tenants`, `tenant_users`, `audit_log`. Migration runner.
 - `packages/auth` better-auth integration. Email+password, admin role only. Sign-in, sign-out, password reset.
@@ -18,7 +18,7 @@ Milestones are defined by *what a user can do*, not by *what code exists*. Each 
 - `packages/adapters/imessage` v0: read `chats`, `messages`, `chat_contact_matches` from `~/imsg-data/imessage.sqlite`. No drafts yet.
 - `packages/mcp-client` wrapper for contacts-mcp; resolves contact names per conversation.
 - Accessibility baseline: 48px touch targets, font scaling, focus rings, axe-core in Playwright.
-- README with one-command local dev (`pnpm dev`).
+- README with one-command local dev (`bun run dev`).
 
 **Exit criteria:** Manual deploy to founding family's Mac. Dad signs in, sees today's conversations, taps one, reads it. Lighthouse a11y ≥ 95. Axe-core: zero serious/critical violations.
 

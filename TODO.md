@@ -30,20 +30,20 @@ When you complete a task and discover follow-ups, append them under the relevant
 
 ### Repository scaffolding
 
-- [x] **Initialize pnpm workspace and Turborepo.** Files: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `.nvmrc`, `.gitignore`. Acceptance: `pnpm install` runs clean, `pnpm turbo run build` is a no-op without errors. **(haiku)**
-- [x] **Add Biome config.** Files: `biome.json`. Lint + format. Acceptance: `pnpm biome check .` passes on the empty repo. **(haiku)**
+- [x] **Initialize Bun workspace and Turborepo.** Files: `package.json`, `bun.lock`, `turbo.json`, `.nvmrc`, `.gitignore`. Acceptance: `bun install` runs clean, `bun run build` executes workspace tasks without errors. **(haiku)**
+- [x] **Add Biome config.** Files: `biome.json`. Lint + format. Acceptance: `bun run lint` passes on the empty repo. **(haiku)**
 - [x] **Add TypeScript base config.** Files: `tsconfig.base.json`, per-package `tsconfig.json` extends. Strict mode on, `verbatimModuleSyntax: true`. Acceptance: `tsc --noEmit` clean. **(haiku)**
-- [x] **Add Vitest workspace config.** Files: `vitest.config.ts`. Acceptance: `pnpm test` runs and reports 0 tests. **(haiku)**
-- [x] **Add GitHub Actions CI matrix.** Files: `.github/workflows/ci.yml`. Matrix over `ubuntu-latest` (amd64), `ubuntu-24.04-arm` (arm64), `macos-14` (Apple Silicon). Steps: install pnpm, cache, lint, typecheck, test, build. Acceptance: green CI on a no-op PR. **(sonnet)**
+- [x] **Add Vitest workspace config.** Files: `vitest.config.ts`. Acceptance: `bun test` runs and reports 0 tests. **(haiku)**
+- [x] **Add GitHub Actions CI matrix.** Files: `.github/workflows/ci.yml`. Matrix over `ubuntu-latest` (amd64), `ubuntu-24.04-arm` (arm64), `macos-14` (Apple Silicon). Steps: install Bun, lint, typecheck, test, build. Acceptance: green CI on a no-op PR. **(sonnet)**
 - [x] **Add CONTRIBUTING.md and CODE_OF_CONDUCT.md.** Cover AGPL implications, no-CLA stance, accessibility expectations. **(haiku)**
-- [x] **Add LICENSE headers script.** Tool that checks/adds SPDX header. Files: `tools/scripts/license-headers.ts`. `pnpm check:licenses` in CI lint job. **(haiku)**
+- [x] **Add LICENSE headers script.** Tool that checks/adds SPDX header. Files: `tools/scripts/license-headers.ts`. `bun run check:licenses` in CI lint job. **(haiku)**
 
 ### Database layer (`packages/db`)
 
 - [ ] **Bootstrap Drizzle for SQLite.** Files: `packages/db/package.json`, `packages/db/drizzle.config.ts`, `packages/db/src/client.ts`. Acceptance: opening the client creates an empty SQLite file at the configured path. **(sonnet)**
 - [ ] **Define `users`, `sessions`, `tenants`, `tenant_users` schemas.** Files: `packages/db/src/schema/auth.ts`. Match the column list in [PLAN.md § Hub's own database](PLAN.md#hubs-own-database). Acceptance: migration generates and applies cleanly. **(sonnet)**
 - [ ] **Define `audit_log` schema.** Files: `packages/db/src/schema/audit.ts`. Append-only; include `tenant_id`, `user_id`, `action`, `target_type`, `target_id`, `payload_json`, `created_at`. **(sonnet)**
-- [ ] **Migration runner with seed for first admin.** Files: `packages/db/src/migrate.ts`, CLI entry `pnpm db:migrate`, `pnpm db:seed`. Seed reads `INITIAL_ADMIN_EMAIL` env var. Acceptance: fresh install ends with one admin user. **(sonnet)**
+- [ ] **Migration runner with seed for first admin.** Files: `packages/db/src/migrate.ts`, CLI entry `bun run db:migrate`, `bun run db:seed`. Seed reads `INITIAL_ADMIN_EMAIL` env var. Acceptance: fresh install ends with one admin user. **(sonnet)**
 
 ### Auth layer (`packages/auth`)
 
