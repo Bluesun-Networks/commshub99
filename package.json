@@ -16,6 +16,7 @@
     "check:licenses": "node --import tsx tools/scripts/license-headers.ts",
     "db:generate": "bun run --filter @commshub99/db db:generate",
     "db:migrate": "bun run --filter @commshub99/db db:migrate",
+    "db:seed": "bun run --filter @commshub99/db db:seed",
     "db:studio": "bun run --filter @commshub99/db db:studio",
     "fix:licenses": "node --import tsx tools/scripts/license-headers.ts --fix",
     "typecheck": "turbo run typecheck",
