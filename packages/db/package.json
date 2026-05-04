@@ -1,5 +1,16 @@
 {
   "name": "@commshub99/db",
   "version": "0.0.1",
-  "private": true
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  }
 }
