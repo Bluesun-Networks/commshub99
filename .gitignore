@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 .pnp
 .pnp.js
 
@@ -12,6 +13,9 @@ build/
 
 # Turbo
 .turbo/
+
+# Local agent state
+.claude/
 
 # Test / coverage
 coverage/
