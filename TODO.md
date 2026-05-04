@@ -41,7 +41,7 @@ When you complete a task and discover follow-ups, append them under the relevant
 ### Database layer (`packages/db`)
 
 - [x] **Bootstrap Drizzle for SQLite.** Files: `packages/db/package.json`, `packages/db/drizzle.config.ts`, `packages/db/src/client.ts`. Acceptance: opening the client creates an empty SQLite file at the configured path. **(sonnet)**
-- [ ] **Define `users`, `sessions`, `tenants`, `tenant_users` schemas.** Files: `packages/db/src/schema/auth.ts`. Match the column list in [PLAN.md § Hub's own database](PLAN.md#hubs-own-database). Acceptance: migration generates and applies cleanly. **(sonnet)**
+- [x] **Define `users`, `sessions`, `tenants`, `tenant_users` schemas.** Files: `packages/db/src/schema/auth.ts`. Match the column list in [PLAN.md § Hub's own database](PLAN.md#hubs-own-database). Acceptance: migration generates and applies cleanly. **(sonnet)**
 - [ ] **Define `audit_log` schema.** Files: `packages/db/src/schema/audit.ts`. Append-only; include `tenant_id`, `user_id`, `action`, `target_type`, `target_id`, `payload_json`, `created_at`. **(sonnet)**
 - [ ] **Migration runner with seed for first admin.** Files: `packages/db/src/migrate.ts`, CLI entry `bun run db:migrate`, `bun run db:seed`. Seed reads `INITIAL_ADMIN_EMAIL` env var. Acceptance: fresh install ends with one admin user. **(sonnet)**
 

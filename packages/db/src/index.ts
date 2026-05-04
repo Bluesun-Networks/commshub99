@@ -7,3 +7,4 @@ export {
   DEFAULT_DATABASE_FILENAME,
   resolveDatabasePath,
 } from "./client.js";
+export * from "./schema/index.js";

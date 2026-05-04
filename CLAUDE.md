@@ -137,8 +137,8 @@ If you need a query that the schema doesn't easily support, **don't add a column
 ### Adding a Drizzle migration
 
 ```bash
-bun --filter @commshub99/db run db:generate   # creates SQL in packages/db/migrations
-bun --filter @commshub99/db run db:migrate    # applies to local DB
+bun run db:generate   # creates SQL in packages/db/migrations
+bun run db:migrate    # applies to local DB
 ```
 
 Never edit a migration after it's merged. Add a new one to fix.
