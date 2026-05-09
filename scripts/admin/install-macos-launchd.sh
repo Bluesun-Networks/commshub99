@@ -9,22 +9,36 @@ PLIST_DIR="${HOME}/Library/LaunchAgents"
 PLIST_PATH="${PLIST_DIR}/${LABEL}.plist"
 LOG_DIR="${REPO_ROOT}/logs"
 RUN_DIR="${REPO_ROOT}/.run"
-BUN_BIN="${BUN_BIN:-${HOME}/.bun/bin/bun}"
+RUNNER_PATH="${RUN_DIR}/commshub99-web-launchd.sh"
+SERVICE_PATH="${SERVICE_PATH:-${HOME}/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 PORT="${PORT:-3000}"
 IMSG_DATA_DIR="${IMSG_DATA_DIR:-${HOME}/imsg-data}"
 COMMSHUB99_DB_PATH="${COMMSHUB99_DB_PATH:-${HOME}/.commshub99/hub.db}"
 
-if [[ ! -x "${BUN_BIN}" ]]; then
-  echo "Bun was not found at ${BUN_BIN}."
-  echo "Set BUN_BIN=/path/to/bun and re-run this script."
+export PATH="${SERVICE_PATH}"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "Bun was not found on PATH."
+  echo "Set SERVICE_PATH to include Bun and re-run this script."
   exit 1
 fi
 
 mkdir -p "${PLIST_DIR}" "${LOG_DIR}" "${RUN_DIR}" "$(dirname "${COMMSHUB99_DB_PATH}")"
 
 cd "${REPO_ROOT}"
-"${BUN_BIN}" install
-"${BUN_BIN}" run --filter @commshub99/web build
+bun install
+bun run --filter @commshub99/web build
+
+cat > "${RUNNER_PATH}" <<RUNNER
+#!/usr/bin/env zsh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+set -euo pipefail
+
+cd "${REPO_ROOT}"
+exec bun run --filter @commshub99/web start
+RUNNER
+chmod +x "${RUNNER_PATH}"
 
 if launchctl print "gui/${UID}/${LABEL}" >/dev/null 2>&1; then
   launchctl bootout "gui/${UID}" "${PLIST_PATH}" >/dev/null 2>&1 || true
@@ -43,11 +57,8 @@ cat > "${PLIST_PATH}" <<PLIST
 
   <key>ProgramArguments</key>
   <array>
-    <string>${BUN_BIN}</string>
-    <string>run</string>
-    <string>--filter</string>
-    <string>@commshub99/web</string>
-    <string>start</string>
+    <string>/bin/zsh</string>
+    <string>${RUNNER_PATH}</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -61,7 +72,7 @@ cat > "${PLIST_PATH}" <<PLIST
     <key>COMMSHUB99_DB_PATH</key>
     <string>${COMMSHUB99_DB_PATH}</string>
     <key>PATH</key>
-    <string>${HOME}/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>${SERVICE_PATH}</string>
   </dict>
 
   <key>RunAtLoad</key>

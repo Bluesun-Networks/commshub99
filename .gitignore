@@ -16,6 +16,7 @@ build/
 
 # Local agent state
 .claude/
+.run/
 
 # Test / coverage
 coverage/

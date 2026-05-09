@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { Dirent } from "node:fs";
+import { existsSync } from "node:fs";
 import { readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, sep } from "node:path";
+import Database from "better-sqlite3";
 import { NextResponse } from "next/server";
 import { requireAuthenticatedRequest } from "../../../../_auth";
 
@@ -16,6 +19,10 @@ function resolveChatsPath() {
 
 function resolveDataPath() {
   return process.env.IMSG_DATA_DIR ?? join(homedir(), "imsg-data");
+}
+
+function resolveImessageDatabasePath() {
+  return join(resolveDataPath(), "imessage.sqlite");
 }
 
 async function findDraftPath(directory: string, uuid: string): Promise<string | null> {
@@ -101,6 +108,29 @@ function yamlScalar(value: string | number | boolean) {
   return JSON.stringify(value);
 }
 
+function readChatService(chatId: number) {
+  const databasePath = resolveImessageDatabasePath();
+
+  if (!existsSync(databasePath)) {
+    return "";
+  }
+
+  const sqlite = new Database(databasePath, {
+    fileMustExist: true,
+    readonly: true,
+  });
+
+  try {
+    const row = sqlite.prepare("SELECT service FROM chats WHERE id = ?").get(chatId) as
+      | { service?: string }
+      | undefined;
+
+    return row?.service ?? "";
+  } finally {
+    sqlite.close();
+  }
+}
+
 function writeOutboxContent(content: string) {
   const { body, meta } = parseDraft(content);
   const outboxMeta = new Map<string, string | number | boolean>();
@@ -112,12 +142,19 @@ function writeOutboxContent(content: string) {
   }
 
   outboxMeta.set("uuid", uuid);
-  outboxMeta.set("chat_id", Number(chatId));
+  const numericChatId = Number(chatId);
+
+  outboxMeta.set("chat_id", numericChatId);
   outboxMeta.set("target_identifier", meta.get("target_identifier") ?? "");
   outboxMeta.set("created_at", meta.get("created_at") ?? new Date().toISOString());
   outboxMeta.set("source_draft_uuid", uuid);
   outboxMeta.set("reasoning", meta.get("reasoning") ?? "");
   outboxMeta.set("auto_approved", meta.get("auto_approved") === "true");
+
+  const service = meta.get("service") || readChatService(numericChatId);
+  if (service) {
+    outboxMeta.set("service", service);
+  }
 
   const sourceRowid = Number(meta.get("source_rowid"));
   if (Number.isFinite(sourceRowid)) {
