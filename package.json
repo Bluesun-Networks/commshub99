@@ -19,6 +19,8 @@
     "db:seed": "bun run --filter @commshub99/db db:seed",
     "db:studio": "bun run --filter @commshub99/db db:studio",
     "fix:licenses": "node --import tsx tools/scripts/license-headers.ts --fix",
+    "service:install:macos": "bash scripts/admin/install-macos-launchd.sh",
+    "service:uninstall:macos": "bash scripts/admin/uninstall-macos-launchd.sh",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules"
   },
