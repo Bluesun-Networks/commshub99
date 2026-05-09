@@ -7,7 +7,7 @@
     "build": "next build",
     "dev": "next dev",
     "start": "next start",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "bun run --filter @commshub99/db build && bun run --filter @commshub99/auth build && bun run --filter @commshub99/mcp-client build && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@commshub99/auth": "workspace:*",
