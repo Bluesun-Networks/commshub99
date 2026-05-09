@@ -25,6 +25,11 @@
       "name": "@commshub99/web",
       "version": "0.0.1",
       "dependencies": {
+        "@commshub99/auth": "workspace:*",
+        "@commshub99/db": "workspace:*",
+        "@commshub99/mcp-client": "workspace:*",
+        "@types/better-sqlite3": "^7.6.13",
+        "better-sqlite3": "^12.9.0",
         "lucide-react": "^1.14.0",
         "next": "^15.5.15",
         "react": "^19.2.5",
@@ -47,6 +52,13 @@
     "packages/auth": {
       "name": "@commshub99/auth",
       "version": "0.0.1",
+      "dependencies": {
+        "@commshub99/db": "workspace:*",
+        "drizzle-orm": "^0.45.2",
+      },
+      "devDependencies": {
+        "@types/node": "^25.6.0",
+      },
     },
     "packages/core": {
       "name": "@commshub99/core",
@@ -67,6 +79,9 @@
     "packages/mcp-client": {
       "name": "@commshub99/mcp-client",
       "version": "0.0.1",
+      "devDependencies": {
+        "@types/node": "^25.6.0",
+      },
     },
     "packages/ui": {
       "name": "@commshub99/ui",

@@ -27,7 +27,7 @@ const IGNORE_DIRS = new Set([
   ".claude",
 ]);
 
-const IGNORE_FILES = new Set(["vite.config.ts", "vite.config.mts"]);
+const IGNORE_FILES = new Set(["next-env.d.ts", "vite.config.ts", "vite.config.mts"]);
 
 function* walk(dir: string): Generator<string> {
   for (const entry of readdirSync(dir)) {

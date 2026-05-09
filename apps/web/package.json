@@ -10,6 +10,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@commshub99/auth": "workspace:*",
+    "@commshub99/db": "workspace:*",
+    "@commshub99/mcp-client": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.9.0",
     "lucide-react": "^1.14.0",
     "next": "^15.5.15",
     "react": "^19.2.5",
