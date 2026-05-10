@@ -571,6 +571,32 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
   const [mode, setMode] = useState<Mode>("essentials");
   const [schedules, setSchedules] = useState<ScheduledSendView[]>([]);
 
+  const refreshApprovals = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) {
+      setDraftsLoading(true);
+    }
+
+    setDraftError(null);
+
+    try {
+      const [nextDrafts, nextSchedules] = await Promise.all([
+        loadDraftProposals(),
+        loadScheduledSends(),
+      ]);
+
+      setDrafts(nextDrafts);
+      setSchedules(nextSchedules);
+    } catch (error) {
+      setDraftError(error instanceof Error ? error.message : "Could not load drafts");
+      setDrafts([]);
+      setSchedules([]);
+    } finally {
+      if (!quiet) {
+        setDraftsLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const savedMode = window.localStorage.getItem("commshub99:mode");
 
@@ -655,6 +681,18 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    const events = new EventSource("/api/events");
+
+    events.addEventListener("approvals", () => {
+      void refreshApprovals({ quiet: true });
+    });
+
+    return () => {
+      events.close();
+    };
+  }, [refreshApprovals]);
 
   function selectMode(nextMode: Mode) {
     setMode(nextMode);
@@ -799,25 +837,7 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
             drafts={drafts}
             error={draftError}
             loading={draftsLoading}
-            onRefresh={async () => {
-              setDraftsLoading(true);
-              setDraftError(null);
-              try {
-                const [nextDrafts, nextSchedules] = await Promise.all([
-                  loadDraftProposals(),
-                  loadScheduledSends(),
-                ]);
-
-                setDrafts(nextDrafts);
-                setSchedules(nextSchedules);
-              } catch (error) {
-                setDraftError(error instanceof Error ? error.message : "Could not load drafts");
-                setDrafts([]);
-                setSchedules([]);
-              } finally {
-                setDraftsLoading(false);
-              }
-            }}
+            onRefresh={refreshApprovals}
             schedules={schedules}
           />
         ) : null}

@@ -51,7 +51,7 @@ This section reflects the current codebase state after the first local web/admin
 - [x] **Add edit-before-approve.** Files: `apps/web/src/components/AppShell.tsx` or `DraftReview.tsx`, draft approve API/service. User can edit body before approval; edits are what reach outbox. Acceptance: edited text appears in the generated outbox item. **(opus)**
 - [x] **Add tremor-safe confirmation.** Files: `apps/web/src/components/DraftReview.tsx`, `apps/web/src/app/globals.css`. Use a hold-to-confirm or equivalent accessible interaction for approve/reject. Acceptance: accidental single click cannot send. **(opus)**
 - [x] **Write audit log entries for all draft mutations.** Files: `packages/core/src/services/audit.ts`, draft service/routes. Capture user, action, target, and payload for approve, reject, edit, schedule, cancel. Acceptance: approving a draft creates an audit row with the current user ID. **(sonnet)**
-- [ ] **Add live approval updates.** Files: `apps/web/src/app/api/events/route.ts`, `apps/web/src/components/AppShell.tsx`. Push draft changes via SSE or a similarly simple local mechanism. Acceptance: queue updates without manual refresh after imsg-agent writes/moves files. **(sonnet)**
+- [x] **Add live approval updates.** Files: `apps/web/src/app/api/events/route.ts`, `apps/web/src/components/AppShell.tsx`. Push draft changes via SSE or a similarly simple local mechanism. Acceptance: queue updates without manual refresh after imsg-agent writes/moves files. **(sonnet)**
 - [ ] **Add approval end-to-end coverage.** Files: `apps/web/e2e` or focused integration tests. Seed a temp draft, approve it, and verify the outbox artifact. Acceptance: test is deterministic and never sends a real iMessage. **(sonnet)**
 
 ### Scheduling
