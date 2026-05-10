@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@commshub99/auth": "workspace:*",
+    "@commshub99/core": "workspace:*",
     "@commshub99/db": "workspace:*",
     "@commshub99/mcp-client": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",

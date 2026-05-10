@@ -4,6 +4,9 @@ import type { DbClient, User } from "@commshub99/db";
 import { createDbClient, sessions, tenants, tenantUsers, users } from "@commshub99/db";
 import { eq } from "drizzle-orm";
 
+export { PERMISSION_DENIED_CODE, requirePermission } from "./guards.js";
+export { can, type Permission, permissions } from "./permissions.js";
+
 export const SESSION_COOKIE_NAME = "commshub99_session";
 export const SESSION_TTL_DAYS = 30;
 

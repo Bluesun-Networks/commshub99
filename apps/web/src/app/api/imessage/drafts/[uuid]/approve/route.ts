@@ -5,9 +5,10 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, sep } from "node:path";
+import { writeAuditLog } from "@commshub99/core";
 import Database from "better-sqlite3";
 import { NextResponse } from "next/server";
-import { requireAuthenticatedRequest } from "../../../../_auth";
+import { requirePermissionRequest } from "../../../../_auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -199,7 +200,7 @@ function isDraftPath(path: string) {
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ uuid: string }> }) {
-  const auth = requireAuthenticatedRequest(request);
+  const auth = requirePermissionRequest(request, "drafts:approve");
 
   if (auth.response) {
     return auth.response;
@@ -222,6 +223,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ uui
 
   await atomicWrite(outboxPathFor(uuid), writeOutboxContent(content));
   await unlink(draftPath);
+  writeAuditLog({
+    action: "draft.approve",
+    payload: {
+      path: draftPath,
+    },
+    targetId: uuid,
+    targetType: "imessage_draft",
+    userId: auth.session.user.id,
+  });
 
   return NextResponse.json({
     status: "queued",

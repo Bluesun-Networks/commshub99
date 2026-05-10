@@ -3,8 +3,9 @@ import type { Dirent } from "node:fs";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { writeAuditLog } from "@commshub99/core";
 import { NextResponse } from "next/server";
-import { requireAuthenticatedRequest } from "../../../_auth";
+import { requirePermissionRequest } from "../../../_auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -105,7 +106,7 @@ async function atomicWrite(path: string, content: string) {
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ uuid: string }> }) {
-  const auth = requireAuthenticatedRequest(request);
+  const auth = requirePermissionRequest(request, "drafts:edit");
 
   if (auth.response) {
     return auth.response;
@@ -130,6 +131,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ uu
 
   const content = await readFile(draftPath, "utf8");
   await atomicWrite(draftPath, replaceDraftBody(content, text));
+  writeAuditLog({
+    action: "draft.edit",
+    payload: {
+      path: draftPath,
+      textLength: text.length,
+    },
+    targetId: uuid,
+    targetType: "imessage_draft",
+    userId: auth.session.user.id,
+  });
 
   return NextResponse.json({
     status: "updated",
@@ -138,7 +149,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ uu
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ uuid: string }> }) {
-  const auth = requireAuthenticatedRequest(request);
+  const auth = requirePermissionRequest(request, "drafts:reject");
 
   if (auth.response) {
     return auth.response;
@@ -163,6 +174,18 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ u
   await mkdir(join(resolveDataPath(), "rejected"), { recursive: true });
   await atomicWrite(draftPath, addRejectMetadata(await readFile(draftPath, "utf8"), futureNote));
   await rename(draftPath, rejectedPath);
+  writeAuditLog({
+    action: "draft.reject",
+    payload: {
+      futureNoteLength: futureNote.length,
+      path: draftPath,
+      rejectedPath,
+      rulesReviewStatus: futureNote ? "pending_llm_review" : "not_requested",
+    },
+    targetId: uuid,
+    targetType: "imessage_draft",
+    userId: auth.session.user.id,
+  });
 
   return NextResponse.json({
     rulesReviewStatus: futureNote ? "pending_llm_review" : "not_requested",

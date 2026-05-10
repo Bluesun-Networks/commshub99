@@ -26,6 +26,58 @@ When you complete a task and discover follow-ups, append them under the relevant
 
 ---
 
+## Current Core Completion Backlog
+
+This section reflects the current codebase state after the first local web/admin flows landed. Older milestone sections below remain useful, but some unchecked items are stale because the implementation exists in a different layer than originally planned.
+
+### Security and auth
+
+- [x] **Add a central permission matrix.** Files: `packages/auth/src/permissions.ts`, `packages/auth/src/permissions.test.ts`, `packages/auth/src/index.ts`. Define permissions for browse, approve, reject, schedule, edit drafts, manage users, manage settings, and view audit log. Acceptance: tests cover `admin` and `readonly`. **(opus)**
+- [x] **Add server-side permission guards.** Files: `packages/auth/src/guards.ts`, `apps/web/src/app/api/_auth.ts`. Expose a stable denied response/code and helpers for route handlers. Acceptance: route tests or focused unit tests prove unauthorized requests fail closed. **(sonnet)**
+- [x] **Protect mutating web routes.** Files: `apps/web/src/app/api/**/route.ts`. Apply permissions to existing approve, reject, draft-edit, and contact-update routes. Acceptance: readonly sessions cannot approve/reject via direct HTTP calls. **(opus)**
+- [ ] **Reconcile auth docs and implementation.** Files: `TODO.md`, `README.md`, `PLAN.md`, `ROADMAP.md`. Decide whether custom local auth remains the v0 path or better-auth is still required. Acceptance: docs stop describing already-shipped auth as future work. **(sonnet)**
+- [ ] **Add invite/multi-user onboarding.** Files: `packages/auth`, `packages/db`, `apps/web`. Admin can invite a user, set role, revoke/disable, and reset credentials. Acceptance: invited readonly users can sign in but cannot mutate. **(opus)**
+
+### Core domain and adapter architecture
+
+- [ ] **Move domain types into `packages/core`.** Files: `packages/core/src/types.ts`, `packages/core/src/index.ts`. Centralize conversation, message, participant, attachment, proposed-message, and channel IDs. Acceptance: web and adapters import shared types instead of redefining them. **(opus)**
+- [ ] **Implement adapter registry and service layer.** Files: `packages/core/src/registry.ts`, `packages/core/src/services/*.ts`. Add `ConversationService`, `MessageService`, and `DraftService` over registered adapters. Acceptance: duplicate adapter IDs throw and service tests cover routing by channel/id. **(opus)**
+- [ ] **Move iMessage read logic out of web routes.** Files: `packages/adapters/imessage/src/*.ts`, `apps/web/src/app/api/imessage/**`. Conversations, messages, contacts, and drafts should be served through adapter/core APIs. Acceptance: web routes become thin auth/serialization wrappers. **(opus)**
+- [ ] **Move iMessage approve/reject logic out of web routes.** Files: `packages/adapters/imessage/src/approve.ts`, `packages/adapters/imessage/src/reject.ts`, `packages/core/src/services/draft.ts`. Preserve atomic writes and service normalization. Acceptance: unit/integration tests cover approve, reject, idempotent retry, and malformed draft handling. **(opus)**
+- [ ] **Add fixture-backed iMessage adapter tests.** Files: `packages/adapters/imessage/test/fixtures`, `packages/adapters/imessage/src/*.test.ts`. Use a tiny SQLite fixture and temp data directory. Acceptance: tests do not touch `~/imsg-data`. **(sonnet)**
+
+### Approval workflow
+
+- [ ] **Add edit-before-approve.** Files: `apps/web/src/components/AppShell.tsx` or `DraftReview.tsx`, draft approve API/service. User can edit body before approval; edits are what reach outbox. Acceptance: edited text appears in the generated outbox item. **(opus)**
+- [ ] **Add tremor-safe confirmation.** Files: `apps/web/src/components/DraftReview.tsx`, `apps/web/src/app/globals.css`. Use a hold-to-confirm or equivalent accessible interaction for approve/reject. Acceptance: accidental single click cannot send. **(opus)**
+- [ ] **Write audit log entries for all draft mutations.** Files: `packages/core/src/services/audit.ts`, draft service/routes. Capture user, action, target, and payload for approve, reject, edit, schedule, cancel. Acceptance: approving a draft creates an audit row with the current user ID. **(sonnet)**
+- [ ] **Add live approval updates.** Files: `apps/web/src/app/api/events/route.ts`, `apps/web/src/components/AppShell.tsx`. Push draft changes via SSE or a similarly simple local mechanism. Acceptance: queue updates without manual refresh after imsg-agent writes/moves files. **(sonnet)**
+- [ ] **Add approval end-to-end coverage.** Files: `apps/web/e2e` or focused integration tests. Seed a temp draft, approve it, and verify the outbox artifact. Acceptance: test is deterministic and never sends a real iMessage. **(sonnet)**
+
+### Scheduling
+
+- [ ] **Add scheduled sends schema and migration.** Files: `packages/db/src/schema/schedule.ts`, migrations. Include tenant, draft ref, send time, status, attempts, last error, requester, timestamps. Acceptance: migration applies on a fresh DB. **(sonnet)**
+- [ ] **Implement schedule service and worker.** Files: `packages/core/src/workers/schedule.ts`, `packages/core/src/services/schedule.ts`. Poll due sends, run approve flow, retry with backoff, and mark terminal failures. Acceptance: tests cover due, future, retry, cancel, and failed states. **(opus)**
+- [ ] **Add schedule UI.** Files: `apps/web/src/components/Schedule*.tsx`, approvals view. User can schedule, view, cancel, and reschedule sends with correct local timezone display. Acceptance: scheduled drafts are not sent until due. **(sonnet)**
+
+### Contacts and identity
+
+- [ ] **Harden contacts MCP client.** Files: `packages/mcp-client/src/client.ts`, `packages/mcp-client/src/contacts.ts`. Add reconnect, timeout, structured errors, and 10 minute in-memory cache. Acceptance: contacts failure degrades gracefully in conversations/approvals. **(sonnet)**
+- [ ] **Complete contact linking/correction.** Files: `apps/web`, `packages/core`, iMessage adapter. User can correct a handle-to-contact match and see it persist. Acceptance: corrected match affects conversation and approval display names. **(sonnet)**
+
+### CLI, MCP, and automation surfaces
+
+- [ ] **Build operator CLI workflows.** Files: `apps/cli/src/index.ts` or Ink/commander split. Add pending, approve, reject, schedule, and tail. Acceptance: CLI can approve a temp draft without web UI. **(sonnet)**
+- [ ] **Implement MCP server tools.** Files: `apps/mcp/src/index.ts`, `packages/core`. Add list pending, get proposed, approve, reject, schedule, cancel, search, and audit tools. Acceptance: tools enforce same permissions as web. **(opus)**
+- [ ] **Add API tokens.** Files: `packages/db`, `packages/auth`, `apps/mcp`, `apps/cli`. Tokens are hashed at rest, scoped to users, revocable, and audited. Acceptance: MCP/CLI token auth cannot bypass role restrictions. **(opus)**
+
+### Deployment, operations, and docs
+
+- [ ] **Write single-Mac deployment docs.** Files: `docs/deployment.md`, `README.md`. Include prerequisites, env, DB migration, local admin bootstrap/reset, launchd services, troubleshooting, and remote dev origins. Acceptance: fresh machine setup can follow docs without tribal knowledge. **(sonnet)**
+- [ ] **Polish status/ops output.** Files: `apps/cli/src/index.ts`. Separate historical archived errors from new failures; show last sent time and queue trend. Acceptance: `admin status` no longer reads like an error when only old archived errors exist. **(haiku)**
+- [ ] **Refresh public project docs.** Files: `README.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`. Replace stale "pre-implementation" and update milestone state. Acceptance: docs match what the app can currently do. **(sonnet)**
+- [ ] **Add release smoke checklist.** Files: `docs/deployment.md` or `docs/release-smoke.md`. Include local web login, approvals, status, imsg-agent services, and remote server checks. Acceptance: checklist catches the recent module/dev-origin/send-service issues. **(haiku)**
+
 ## Milestone v0.1 — Foundations & Read-Only Browse
 
 ### Repository scaffolding

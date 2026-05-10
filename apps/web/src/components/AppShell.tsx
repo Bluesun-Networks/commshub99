@@ -689,10 +689,16 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
           />
         ) : null}
         {activeView === "contacts" ? (
-          <Contacts contacts={contacts} error={contactError} loading={contactsLoading} />
+          <Contacts
+            canWriteContacts={currentUser.role === "admin"}
+            contacts={contacts}
+            error={contactError}
+            loading={contactsLoading}
+          />
         ) : null}
         {activeView === "approvals" ? (
           <Approvals
+            canMutateDrafts={currentUser.role === "admin"}
             contacts={contacts}
             conversations={conversations}
             drafts={drafts}
@@ -1003,10 +1009,12 @@ function Conversations({
 }
 
 function Contacts({
+  canWriteContacts,
   contacts,
   error,
   loading,
 }: {
+  canWriteContacts: boolean;
   contacts: Contact[];
   error: string | null;
   loading: boolean;
@@ -1105,6 +1113,10 @@ function Contacts({
   }
 
   function beginAddContact() {
+    if (!canWriteContacts) {
+      return;
+    }
+
     const nextContact = blankContact();
     setManagedContacts((current) => [nextContact, ...current]);
     setSelectedId(nextContact.id);
@@ -1112,7 +1124,7 @@ function Contacts({
   }
 
   function beginEdit() {
-    if (selectedContact) {
+    if (selectedContact && canWriteContacts) {
       setDraftContact(selectedContact);
     }
   }
@@ -1382,13 +1394,21 @@ function Contacts({
             </button>
           ))}
         </fieldset>
-        <button className="action-button" onClick={beginAddContact} type="button">
+        <button
+          className="action-button"
+          disabled={!canWriteContacts}
+          onClick={beginAddContact}
+          title={canWriteContacts ? "Add contact" : "Only admins can add contacts"}
+          type="button"
+        >
           <Plus aria-hidden size={17} />
           Add
         </button>
         <button
           className="ghost-button"
+          disabled={!canWriteContacts}
           onClick={() => importInputRef.current?.click()}
+          title={canWriteContacts ? "Import contacts" : "Only admins can import contacts"}
           type="button"
         >
           <FileUp aria-hidden size={17} />
@@ -1470,8 +1490,13 @@ function Contacts({
                 <div className="contact-hero">
                   <button
                     className="contact-photo-button"
+                    disabled={!canWriteContacts}
                     onClick={() => photoInputRef.current?.click()}
-                    title="Upload a local contact picture"
+                    title={
+                      canWriteContacts
+                        ? "Upload a local contact picture"
+                        : "Only admins can edit contacts"
+                    }
                     type="button"
                   >
                     <ContactAvatar contact={activeContact} size="large" />
@@ -1511,7 +1536,15 @@ function Contacts({
                       </>
                     ) : (
                       <>
-                        <button className="ghost-button" onClick={beginEdit} type="button">
+                        <button
+                          className="ghost-button"
+                          disabled={!canWriteContacts}
+                          onClick={beginEdit}
+                          title={
+                            canWriteContacts ? "Edit contact" : "Only admins can edit contacts"
+                          }
+                          type="button"
+                        >
                           <Pencil aria-hidden size={17} />
                           Edit
                         </button>
@@ -1785,6 +1818,7 @@ function Contacts({
 }
 
 function Approvals({
+  canMutateDrafts,
   contacts,
   conversations,
   drafts,
@@ -1792,6 +1826,7 @@ function Approvals({
   loading,
   onRefresh,
 }: {
+  canMutateDrafts: boolean;
   contacts: Contact[];
   conversations: Conversation[];
   drafts: DraftProposal[];
@@ -2065,6 +2100,11 @@ function Approvals({
         </div>
       </div>
       {actionError ? <p className="draft-action-error">{actionError}</p> : null}
+      {!canMutateDrafts && !error ? (
+        <p className="draft-action-error">
+          Your account can review drafts, but only admins can edit, approve, or reject them.
+        </p>
+      ) : null}
       {error ? (
         <EmptyState
           action={
@@ -2200,7 +2240,9 @@ function Approvals({
                     <>
                       <button
                         className="action-button"
-                        disabled={busyUuid === draft.uuid || !rejectFutureNote.trim()}
+                        disabled={
+                          !canMutateDrafts || busyUuid === draft.uuid || !rejectFutureNote.trim()
+                        }
                         onClick={() => void rejectDraft(draft.uuid)}
                         title="Reject and queue the note for rules review"
                         type="button"
@@ -2223,7 +2265,7 @@ function Approvals({
                     <>
                       <button
                         className="action-button"
-                        disabled={busyUuid === draft.uuid}
+                        disabled={!canMutateDrafts || busyUuid === draft.uuid}
                         onClick={() => void saveDraft(draft.uuid)}
                         title="Save draft text"
                         type="button"
@@ -2246,31 +2288,37 @@ function Approvals({
                     <>
                       <button
                         className="action-button"
-                        disabled={busyUuid === draft.uuid}
+                        disabled={!canMutateDrafts || busyUuid === draft.uuid}
                         onClick={() => void approveDraft(draft.uuid)}
-                        title="Mark approved for imsg-agent"
+                        title={
+                          canMutateDrafts
+                            ? "Mark approved for imsg-agent"
+                            : "Only admins can approve drafts"
+                        }
                         type="button"
                       >
                         Approve
                       </button>
                       <button
                         className="ghost-button"
-                        disabled={busyUuid === draft.uuid}
+                        disabled={!canMutateDrafts || busyUuid === draft.uuid}
                         onClick={() => beginEdit(draft)}
-                        title="Edit draft text"
+                        title={canMutateDrafts ? "Edit draft text" : "Only admins can edit drafts"}
                         type="button"
                       >
                         Edit
                       </button>
                       <button
                         className="ghost-button"
-                        disabled={busyUuid === draft.uuid}
+                        disabled={!canMutateDrafts || busyUuid === draft.uuid}
                         onClick={() => {
                           setActionError(null);
                           setRejectingUuid(draft.uuid);
                           setRejectFutureNote("");
                         }}
-                        title="Remove this draft"
+                        title={
+                          canMutateDrafts ? "Remove this draft" : "Only admins can reject drafts"
+                        }
                         type="button"
                       >
                         Reject

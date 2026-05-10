@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { callContactsMcpTool } from "@commshub99/mcp-client";
 import { type NextRequest, NextResponse } from "next/server";
-import { requireAuthenticatedRequest } from "../../_auth";
+import { requirePermissionRequest } from "../../_auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,7 +66,7 @@ function contactArgs(payload: ContactPayload) {
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = requireAuthenticatedRequest(request);
+  const auth = requirePermissionRequest(request, "contacts:write");
 
   if (auth.response) {
     return auth.response;
