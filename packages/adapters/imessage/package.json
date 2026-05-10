@@ -8,6 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@commshub99/core": "workspace:*",
     "better-sqlite3": "^12.9.0"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { existsSync } from "node:fs";
+import type { Conversation } from "@commshub99/core";
 import Database from "better-sqlite3";
 import { displayDate, normalizeMessageText } from "./format.js";
 import { resolveImessageDatabasePath } from "./paths.js";
@@ -41,7 +42,11 @@ function displayName(row: ConversationRow) {
   return row.handle || "Unknown sender";
 }
 
-export function listImessageConversations() {
+export function listImessageConversations(): {
+  conversations: Conversation[];
+  databasePath: string;
+  error: string | null;
+} {
   const databasePath = resolveImessageDatabasePath();
 
   if (!existsSync(databasePath)) {
@@ -160,7 +165,7 @@ export function listImessageConversations() {
           id: `imessage:message:${message.rowid}`,
           sentAt: displayDate(message.sent_at),
         })),
-        status: row.matched_count > 0 ? "matched" : "unmatched",
+        status: row.matched_count > 0 ? ("matched" as const) : ("unmatched" as const),
         unreadCount: 0,
       };
     });

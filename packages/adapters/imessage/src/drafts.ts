@@ -3,6 +3,7 @@ import type { Dirent } from "node:fs";
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ProposedMessage } from "@commshub99/core";
 import Database from "better-sqlite3";
 import { displayDate } from "./format.js";
 import { parseFrontmatter } from "./frontmatter.js";
@@ -93,7 +94,7 @@ async function collectDraftFiles(directory: string): Promise<DraftFile[]> {
   return files.flat();
 }
 
-export async function listImessageDrafts() {
+export async function listImessageDrafts(): Promise<ProposedMessage[]> {
   const draftFiles = await collectDraftFiles(resolveImessageChatsPath());
   const draftContents = await Promise.all(
     draftFiles.map(async (file) => ({

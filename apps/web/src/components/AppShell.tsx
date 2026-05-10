@@ -2,6 +2,7 @@
 "use client";
 
 import type { PublicUser } from "@commshub99/auth";
+import type { Conversation, ProposedMessage as DraftProposal } from "@commshub99/core";
 import {
   Bell,
   BriefcaseBusiness,
@@ -65,41 +66,6 @@ type Contact = {
   phonePoints: ContactPoint[];
   photoUrl: string | null;
   updatedAt: string;
-};
-type Conversation = {
-  id: string;
-  channel: string;
-  contact: string;
-  handle: string;
-  lastMessage: string;
-  lastMessageAt: string;
-  messageCount: number;
-  status: "matched" | "unmatched";
-  linkedContact: {
-    id: string;
-    name: string;
-  } | null;
-  unreadCount: number;
-  messages: Array<{
-    body: string;
-    direction: "inbound" | "outbound";
-    id: string;
-    sentAt: string;
-  }>;
-};
-type DraftProposal = {
-  approved: boolean;
-  chatId: string;
-  createdAt: string;
-  displayCreatedAt: string;
-  model: string;
-  reasoning: string;
-  sourceMessageAt: string;
-  displaySourceMessageAt: string;
-  sourceRowid: number | null;
-  targetIdentifier: string;
-  text: string;
-  uuid: string;
 };
 type ReviewWindowId = "day" | "48h" | "week" | "month" | "year";
 

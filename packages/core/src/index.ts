@@ -1,2 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 export { type WriteAuditLogInput, writeAuditLog } from "./services/audit.js";
+export {
+  type Attachment,
+  attachmentSchema,
+  type ChannelId,
+  type Conversation,
+  type ConversationMessage,
+  channelIdSchema,
+  conversationMessageSchema,
+  conversationSchema,
+  type LinkedContact,
+  linkedContactSchema,
+  type Message,
+  type MessageDirection,
+  messageDirectionSchema,
+  messageSchema,
+  type Participant,
+  type ProposedMessage,
+  type ProposedMessageStatus,
+  participantSchema,
+  proposedMessageSchema,
+  proposedMessageStatusSchema,
+  type Reaction,
+  reactionSchema,
+} from "./types.js";
