@@ -131,6 +131,16 @@ function readChatService(chatId: number) {
   }
 }
 
+function sendService(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "imessage" || normalized === "sms" || normalized === "auto") {
+    return normalized;
+  }
+
+  return "";
+}
+
 function writeOutboxContent(content: string) {
   const { body, meta } = parseDraft(content);
   const outboxMeta = new Map<string, string | number | boolean>();
@@ -151,7 +161,7 @@ function writeOutboxContent(content: string) {
   outboxMeta.set("reasoning", meta.get("reasoning") ?? "");
   outboxMeta.set("auto_approved", meta.get("auto_approved") === "true");
 
-  const service = meta.get("service") || readChatService(numericChatId);
+  const service = sendService(meta.get("service") || readChatService(numericChatId));
   if (service) {
     outboxMeta.set("service", service);
   }
