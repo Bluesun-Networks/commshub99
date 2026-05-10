@@ -73,6 +73,28 @@ Uniqueness: `(tenant_id, channel_id, room_key)`.
 
 ## Future Layers
 
-The next context work should add audited version history, then a resolution service that emits a
-deterministic context bundle for a draft. Historical chat harvest suggestions should write proposed
-context entries with source evidence and review status, never silently applying them.
+## Version History
+
+Every context mutation is recorded in `context_versions`.
+
+Important columns:
+
+- `context_type`: `contact` or `conversation`
+- `context_id`
+- `operation`: `create`, `update`, `delete`, `rollback`
+- `actor_user_id`
+- `before_json`
+- `after_json`
+- `source`: `human`, `harvest`, `import`, `system`
+- `confidence`
+- `review_status`: `pending`, `approved`, `rejected`, `superseded`
+
+`ContextHistoryService` can list history, mark entries superseded, and roll a context back to a
+previous payload. Harvest/import suggestions should use `source` and `confidence` and remain
+reviewable rather than silently applying changes.
+
+## Future Layers
+
+The next context work should add a resolution service that emits a deterministic context bundle for
+a draft. Historical chat harvest suggestions should write proposed context entries with source
+evidence and review status, never silently applying them.

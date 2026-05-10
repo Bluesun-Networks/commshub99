@@ -149,6 +149,34 @@ export const conversationContextSchema = contextProfileSchema.extend({
 });
 export type ConversationContext = z.infer<typeof conversationContextSchema>;
 
+export const contextTypeSchema = z.enum(["contact", "conversation"]);
+export type ContextType = z.infer<typeof contextTypeSchema>;
+
+export const contextHistoryOperationSchema = z.enum(["create", "update", "delete", "rollback"]);
+export type ContextHistoryOperation = z.infer<typeof contextHistoryOperationSchema>;
+
+export const contextHistorySourceSchema = z.enum(["human", "harvest", "import", "system"]);
+export type ContextHistorySource = z.infer<typeof contextHistorySourceSchema>;
+
+export const contextReviewStatusSchema = z.enum(["pending", "approved", "rejected", "superseded"]);
+export type ContextReviewStatus = z.infer<typeof contextReviewStatusSchema>;
+
+export const contextVersionSchema = z.object({
+  actorUserId: z.string().nullable(),
+  after: z.record(z.string(), z.unknown()).nullable(),
+  before: z.record(z.string(), z.unknown()).nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  contextId: z.string(),
+  contextType: contextTypeSchema,
+  createdAt: z.string(),
+  id: z.string(),
+  operation: contextHistoryOperationSchema,
+  reviewStatus: contextReviewStatusSchema,
+  source: contextHistorySourceSchema,
+  tenantId: z.string(),
+});
+export type ContextVersion = z.infer<typeof contextVersionSchema>;
+
 export const proposedMessageSchema = z.object({
   approved: z.boolean(),
   chatId: z.string(),

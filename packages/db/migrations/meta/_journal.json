@@ -29,6 +29,13 @@
       "when": 1778453565438,
       "tag": "0003_aromatic_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1778453816698,
+      "tag": "0004_rich_nuke",
+      "breakpoints": true
     }
   ]
 }

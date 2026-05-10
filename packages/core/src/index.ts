@@ -18,6 +18,11 @@ export {
   writeAuditLog,
   writeDraftMutationAudit,
 } from "./services/audit.js";
+export {
+  ContextHistoryService,
+  type ListContextVersionsInput,
+  type RecordContextVersionInput,
+} from "./services/context-history.js";
 export { ConversationService } from "./services/conversation.js";
 export { DraftService } from "./services/draft.js";
 export { MessageService } from "./services/message.js";
@@ -32,19 +37,29 @@ export {
   attachmentSchema,
   type ChannelId,
   type ContactContext,
+  type ContextHistoryOperation,
+  type ContextHistorySource,
   type ContextProfile,
   type ContextRelationshipCategory,
   type ContextReplyPosture,
+  type ContextReviewStatus,
   type ContextTone,
+  type ContextType,
+  type ContextVersion,
   type Conversation,
   type ConversationContext,
   type ConversationMessage,
   channelIdSchema,
   contactContextSchema,
+  contextHistoryOperationSchema,
+  contextHistorySourceSchema,
   contextProfileSchema,
   contextRelationshipCategorySchema,
   contextReplyPostureSchema,
+  contextReviewStatusSchema,
   contextToneSchema,
+  contextTypeSchema,
+  contextVersionSchema,
   conversationContextSchema,
   conversationMessageSchema,
   conversationSchema,
