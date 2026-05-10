@@ -44,7 +44,7 @@ This section reflects the current codebase state after the first local web/admin
 - [x] **Implement adapter registry and service layer.** Files: `packages/core/src/registry.ts`, `packages/core/src/services/*.ts`. Add `ConversationService`, `MessageService`, and `DraftService` over registered adapters. Acceptance: duplicate adapter IDs throw and service tests cover routing by channel/id. **(opus)**
 - [x] **Move iMessage read logic out of web routes.** Files: `packages/adapters/imessage/src/*.ts`, `apps/web/src/app/api/imessage/**`. Conversations, messages, contacts, and drafts should be served through adapter/core APIs. Acceptance: web routes become thin auth/serialization wrappers. **(opus)**
 - [x] **Move iMessage approve/reject logic out of web routes.** Files: `packages/adapters/imessage/src/approve.ts`, `packages/adapters/imessage/src/reject.ts`, `packages/core/src/services/draft.ts`. Preserve atomic writes and service normalization. Acceptance: unit/integration tests cover approve, reject, idempotent retry, and malformed draft handling. **(opus)**
-- [ ] **Add fixture-backed iMessage adapter tests.** Files: `packages/adapters/imessage/test/fixtures`, `packages/adapters/imessage/src/*.test.ts`. Use a tiny SQLite fixture and temp data directory. Acceptance: tests do not touch `~/imsg-data`. **(sonnet)**
+- [x] **Add fixture-backed iMessage adapter tests.** Files: `packages/adapters/imessage/test/fixtures`, `packages/adapters/imessage/src/*.test.ts`. Use a tiny SQLite fixture and temp data directory. Acceptance: tests do not touch `~/imsg-data`. **(sonnet)**
 
 ### Approval workflow
 
