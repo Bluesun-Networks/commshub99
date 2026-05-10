@@ -180,6 +180,19 @@ describe("ScheduleService", () => {
       "due",
     ]);
   });
+
+  it("lists active scheduled sends for the approval UI", () => {
+    const service = new ScheduleService();
+
+    createDue(service, "pending");
+    createDue(service, "cancelled");
+    service.cancel("cancelled");
+    createDue(service, "sent");
+    service.markSending("sent");
+    service.markSent("sent");
+
+    expect(service.listActive().map((send) => send.id)).toEqual(["pending"]);
+  });
 });
 
 describe("runDueScheduledSends", () => {

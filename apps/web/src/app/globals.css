@@ -889,6 +889,62 @@ tr:last-child td {
   padding-left: 10px;
 }
 
+.schedule-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #c8d6d3;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f5fbf9;
+}
+
+.schedule-panel-heading,
+.schedule-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.schedule-panel-heading {
+  justify-content: space-between;
+}
+
+.schedule-panel-heading > span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #15564f;
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.schedule-controls {
+  flex-wrap: wrap;
+}
+
+.schedule-controls label {
+  min-width: min(100%, 220px);
+}
+
+.schedule-controls input {
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+}
+
+.schedule-error {
+  margin: 0;
+  color: #9f1d1d;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
 .reject-note-panel {
   display: grid;
   gap: 8px;

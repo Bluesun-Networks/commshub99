@@ -67,6 +67,19 @@ type Contact = {
   photoUrl: string | null;
   updatedAt: string;
 };
+type ScheduledSendView = {
+  attempts: number;
+  channelId: string;
+  createdAt: string;
+  draftId: string;
+  id: string;
+  lastError: string | null;
+  requestedByUserId: string | null;
+  sendAt: string;
+  status: string;
+  tenantId: string;
+  updatedAt: string;
+};
 type ReviewWindowId = "day" | "48h" | "week" | "month" | "year";
 const holdConfirmMs = 1200;
 
@@ -270,6 +283,19 @@ function ageLabel(value: string) {
   return `${Math.floor(hours / 24)}d since source`;
 }
 
+function displayLocalDateTime(value: string) {
+  const time = parseDateMs(value);
+
+  if (!time) {
+    return "Unknown time";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(time));
+}
+
 function isInsideReviewWindow(time: number, now: number, durationMs: number) {
   return time > 0 && now - time <= durationMs;
 }
@@ -391,6 +417,34 @@ async function loadDraftProposals() {
   }
 
   return payload.drafts ?? [];
+}
+
+async function loadScheduledSends() {
+  const response = await fetch("/api/imessage/schedules", { cache: "no-store" });
+  const payload = (await response.json()) as {
+    error?: string;
+    schedules?: ScheduledSendView[];
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Could not load scheduled sends");
+  }
+
+  return payload.schedules ?? [];
+}
+
+function toLocalDateTimeInputValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function defaultScheduleInputValue() {
+  const date = new Date();
+
+  date.setHours(date.getHours() + 1, 0, 0, 0);
+
+  return toLocalDateTimeInputValue(date);
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
@@ -515,6 +569,7 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
   const [draftError, setDraftError] = useState<string | null>(null);
   const [draftsLoading, setDraftsLoading] = useState(true);
   const [mode, setMode] = useState<Mode>("essentials");
+  const [schedules, setSchedules] = useState<ScheduledSendView[]>([]);
 
   useEffect(() => {
     const savedMode = window.localStorage.getItem("commshub99:mode");
@@ -536,11 +591,13 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
       setDraftError(null);
 
       try {
-        const [conversationResponse, contactResponse, draftResponse] = await Promise.all([
-          fetch("/api/imessage/conversations", { cache: "no-store" }),
-          fetch("/api/imessage/contacts", { cache: "no-store" }),
-          loadDraftProposals(),
-        ]);
+        const [conversationResponse, contactResponse, draftResponse, scheduleResponse] =
+          await Promise.all([
+            fetch("/api/imessage/conversations", { cache: "no-store" }),
+            fetch("/api/imessage/contacts", { cache: "no-store" }),
+            loadDraftProposals(),
+            loadScheduledSends(),
+          ]);
         const conversationPayload = (await conversationResponse.json()) as {
           conversations?: Conversation[];
           error?: string;
@@ -552,6 +609,7 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
 
         if (!ignore) {
           setDrafts(draftResponse);
+          setSchedules(scheduleResponse);
         }
 
         if (!ignore) {
@@ -745,14 +803,22 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
               setDraftsLoading(true);
               setDraftError(null);
               try {
-                setDrafts(await loadDraftProposals());
+                const [nextDrafts, nextSchedules] = await Promise.all([
+                  loadDraftProposals(),
+                  loadScheduledSends(),
+                ]);
+
+                setDrafts(nextDrafts);
+                setSchedules(nextSchedules);
               } catch (error) {
                 setDraftError(error instanceof Error ? error.message : "Could not load drafts");
                 setDrafts([]);
+                setSchedules([]);
               } finally {
                 setDraftsLoading(false);
               }
             }}
+            schedules={schedules}
           />
         ) : null}
         {activeView === "people" ? <People /> : null}
@@ -1862,6 +1928,7 @@ function Approvals({
   error,
   loading,
   onRefresh,
+  schedules,
 }: {
   canMutateDrafts: boolean;
   contacts: Contact[];
@@ -1870,6 +1937,7 @@ function Approvals({
   error: string | null;
   loading: boolean;
   onRefresh: () => Promise<void>;
+  schedules: ScheduledSendView[];
 }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyUuid, setBusyUuid] = useState<string | null>(null);
@@ -1879,6 +1947,8 @@ function Approvals({
   const [rejectingUuid, setRejectingUuid] = useState<string | null>(null);
   const [rejectFutureNote, setRejectFutureNote] = useState("");
   const [reviewWindowId, setReviewWindowId] = useState<ReviewWindowId>("day");
+  const [scheduleInputs, setScheduleInputs] = useState<Record<string, string>>({});
+  const [schedulingUuid, setSchedulingUuid] = useState<string | null>(null);
   const reviewWindow =
     reviewWindows.find((windowOption) => windowOption.id === reviewWindowId) ?? defaultReviewWindow;
   const contactsByIdentifier = useMemo(() => {
@@ -1911,6 +1981,22 @@ function Approvals({
 
     return names;
   }, [conversations]);
+  const schedulesByDraftId = useMemo(() => {
+    const grouped = new Map<string, ScheduledSendView[]>();
+
+    for (const schedule of schedules) {
+      const list = grouped.get(schedule.draftId) ?? [];
+
+      list.push(schedule);
+      grouped.set(schedule.draftId, list);
+    }
+
+    for (const list of grouped.values()) {
+      list.sort((left, right) => parseDateMs(left.sendAt) - parseDateMs(right.sendAt));
+    }
+
+    return grouped;
+  }, [schedules]);
 
   async function runDraftAction(uuid: string, action: () => Promise<Response>) {
     setActionError(null);
@@ -1968,6 +2054,56 @@ function Approvals({
     );
     setRejectingUuid(null);
     setRejectFutureNote("");
+  }
+
+  function scheduleInputFor(uuid: string) {
+    return scheduleInputs[uuid] ?? defaultScheduleInputValue();
+  }
+
+  async function cancelSchedule(id: string, uuid: string) {
+    await runDraftAction(uuid, () =>
+      fetchWithTimeout(`/api/imessage/schedules/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }),
+    );
+  }
+
+  async function scheduleDraft(uuid: string, existingScheduleId?: string) {
+    const value = scheduleInputFor(uuid);
+    const sendAt = new Date(value);
+
+    if (Number.isNaN(sendAt.getTime())) {
+      setActionError("Choose a valid schedule time.");
+      return;
+    }
+
+    setSchedulingUuid(uuid);
+
+    try {
+      if (existingScheduleId) {
+        const cancelResponse = await fetchWithTimeout(
+          `/api/imessage/schedules/${encodeURIComponent(existingScheduleId)}`,
+          { method: "DELETE" },
+        );
+        const cancelPayload = (await cancelResponse.json()) as { error?: string };
+
+        if (!cancelResponse.ok) {
+          throw new Error(cancelPayload.error ?? "Could not cancel existing schedule");
+        }
+      }
+
+      await runDraftAction(uuid, () =>
+        fetchWithTimeout("/api/imessage/schedules", {
+          body: JSON.stringify({ sendAt: sendAt.toISOString(), uuid }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Could not schedule draft");
+    } finally {
+      setSchedulingUuid(null);
+    }
   }
 
   const draftRecipient = useCallback(
@@ -2199,6 +2335,8 @@ function Approvals({
         <div className="draft-grid">
           {visibleDrafts.map(({ draft, importance, recipient }) => {
             const isRejecting = rejectingUuid === draft.uuid;
+            const activeSchedules = schedulesByDraftId.get(`imessage:draft:${draft.uuid}`) ?? [];
+            const nextSchedule = activeSchedules[0] ?? null;
 
             return (
               <article className="draft-card" key={draft.uuid}>
@@ -2254,6 +2392,72 @@ function Approvals({
                   </div>
                 </dl>
                 {draft.reasoning ? <p className="draft-reasoning">{draft.reasoning}</p> : null}
+                <div className="schedule-panel">
+                  <div className="schedule-panel-heading">
+                    <span>
+                      <CalendarClock aria-hidden size={16} />
+                      {nextSchedule
+                        ? `Scheduled for ${displayLocalDateTime(nextSchedule.sendAt)}`
+                        : "Schedule send"}
+                    </span>
+                    {nextSchedule ? (
+                      <StatusBadge tone={nextSchedule.status === "failed" ? "warn" : "waiting"}>
+                        {nextSchedule.status}
+                      </StatusBadge>
+                    ) : null}
+                  </div>
+                  {nextSchedule?.lastError ? (
+                    <p className="schedule-error">{nextSchedule.lastError}</p>
+                  ) : null}
+                  <div className="schedule-controls">
+                    <label htmlFor={`schedule-${draft.uuid}`}>
+                      <span className="sr-only">Schedule time</span>
+                      <input
+                        disabled={!canMutateDrafts || busyUuid === draft.uuid}
+                        id={`schedule-${draft.uuid}`}
+                        min={toLocalDateTimeInputValue(new Date())}
+                        onChange={(event) =>
+                          setScheduleInputs((current) => ({
+                            ...current,
+                            [draft.uuid]: event.target.value,
+                          }))
+                        }
+                        type="datetime-local"
+                        value={scheduleInputFor(draft.uuid)}
+                      />
+                    </label>
+                    <button
+                      className="ghost-button"
+                      disabled={
+                        !canMutateDrafts || busyUuid === draft.uuid || schedulingUuid === draft.uuid
+                      }
+                      onClick={() => void scheduleDraft(draft.uuid, nextSchedule?.id)}
+                      title={
+                        nextSchedule
+                          ? "Replace the current scheduled send time"
+                          : "Schedule this draft"
+                      }
+                      type="button"
+                    >
+                      {nextSchedule ? "Reschedule" : "Schedule"}
+                    </button>
+                    {nextSchedule ? (
+                      <button
+                        className="ghost-button"
+                        disabled={
+                          !canMutateDrafts ||
+                          busyUuid === draft.uuid ||
+                          schedulingUuid === draft.uuid
+                        }
+                        onClick={() => void cancelSchedule(nextSchedule.id, draft.uuid)}
+                        title="Cancel this scheduled send"
+                        type="button"
+                      >
+                        Cancel schedule
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 {isRejecting ? (
                   <div className="reject-note-panel">
                     <label htmlFor={`reject-${draft.uuid}`}>

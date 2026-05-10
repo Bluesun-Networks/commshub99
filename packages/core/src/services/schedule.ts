@@ -137,6 +137,25 @@ export class ScheduleService {
     }
   }
 
+  listActive() {
+    const client = createDbClient();
+
+    try {
+      const rows = client.sqlite
+        .prepare(
+          `SELECT *
+          FROM scheduled_sends
+          WHERE status IN ('pending', 'sending', 'failed')
+          ORDER BY send_at ASC, created_at ASC`,
+        )
+        .all() as Record<string, unknown>[];
+
+      return rows.map(rowToScheduledSend);
+    } finally {
+      client.close();
+    }
+  }
+
   cancel(id: string) {
     const existing = this.get(id);
 
