@@ -8,11 +8,11 @@ Milestones are defined by *what a user can do*, not by *what code exists*. Each 
 
 **User can:** sign in to the web UI as admin, see the list of recent iMessage conversations enriched with contact names, open a conversation and read its message history.
 
-**Engineering scope:**
+**Engineering scope:** largely shipped locally; remaining work is deployment polish and broader e2e/a11y verification.
 - Monorepo bootstrap: Bun workspaces, Turborepo, Biome, Vitest, Playwright, GitHub Actions matrix (linux-amd64, linux-arm64, macos-arm64).
 - `apps/web` Next.js skeleton with Tailwind + shadcn/ui, Essentials/Power layout shell.
 - `packages/db` Drizzle schema for `users`, `sessions`, `tenants`, `tenant_users`, `audit_log`. Migration runner.
-- `packages/auth` better-auth integration. Email+password, admin role only. Sign-in, sign-out, password reset.
+- `packages/auth` custom local auth. Email+password, admin/readonly roles, sign-in/sign-out, local admin management.
 - `packages/core` ConversationService, MessageService (read-only).
 - `packages/adapters/_contract` initial `ChannelAdapter` interface.
 - `packages/adapters/imessage` v0: read `chats`, `messages`, `chat_contact_matches` from `~/imsg-data/imessage.sqlite`. No drafts yet.
@@ -26,7 +26,7 @@ Milestones are defined by *what a user can do*, not by *what code exists*. Each 
 
 **User can:** see a queue of drafts proposed by imsg-agent, read each draft and its reasoning, edit the body, approve (which sends), or reject (which deletes).
 
-**Engineering scope:**
+**Engineering scope:** mostly shipped locally; live updates and broader e2e coverage remain.
 - iMessage adapter: watch `~/imsg-data/drafts/`, parse Markdown frontmatter into `ProposedMessage`.
 - DraftService in `packages/core` with the approve/reject state machine.
 - File-system writes via atomic rename: edit body, set frontmatter `approved: true`, move to `~/imsg-data/outbox/`.
@@ -41,7 +41,7 @@ Milestones are defined by *what a user can do*, not by *what code exists*. Each 
 
 **User can:** schedule an approved draft to send at a future time. View, reschedule, or cancel pending scheduled sends.
 
-**Engineering scope:**
+**Engineering scope:** schema and core worker primitives are shipped; UI and process wiring remain.
 - `scheduled_sends` table + Drizzle migration.
 - Worker process inside the web app (single-process deploy) or `apps/mcp` (split deploy) polling every 30s.
 - Schedule UI: date/time picker, list of pending schedules, cancel/reschedule actions.
@@ -62,14 +62,14 @@ Milestones are defined by *what a user can do*, not by *what code exists*. Each 
 
 **Exit criteria:** Sibling signs in, browses drafts, leaves a suggested edit. Dad sees the suggestion when he opens the draft.
 
-## v0.5 — TUI / CLI
+## v0.5 — Operator CLI
 
-**User can:** run `commshub99` in a terminal, sign in, see pending approvals, approve from the keyboard.
+**User can:** run `commshub99` in a terminal, inspect status and pending drafts, edit/approve/reject/schedule drafts, and inspect recent imsg-agent activity.
 
 **Engineering scope:**
-- `apps/cli` with Ink. Commands: `auth login`, `pending`, `approve <id>`, `reject <id>`, `schedule <id> <when>`, `tail` (live SSE feed).
-- Auth via API token, not browser session.
-- Reuses `packages/core` services; no duplicate logic.
+- `apps/cli` operator commands: `status`, `pending`, `edit <id>`, `approve <id>`, `reject <id>`, `schedule <id> --at <when>`, `tail`.
+- API-token auth is still future work for remote/non-local use.
+- Reuses adapter/core services where available.
 
 **Exit criteria:** Approve a draft from a tmux pane on a remote SSH session.
 

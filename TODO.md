@@ -35,7 +35,7 @@ This section reflects the current codebase state after the first local web/admin
 - [x] **Add a central permission matrix.** Files: `packages/auth/src/permissions.ts`, `packages/auth/src/permissions.test.ts`, `packages/auth/src/index.ts`. Define permissions for browse, approve, reject, schedule, edit drafts, manage users, manage settings, and view audit log. Acceptance: tests cover `admin` and `readonly`. **(opus)**
 - [x] **Add server-side permission guards.** Files: `packages/auth/src/guards.ts`, `apps/web/src/app/api/_auth.ts`. Expose a stable denied response/code and helpers for route handlers. Acceptance: route tests or focused unit tests prove unauthorized requests fail closed. **(sonnet)**
 - [x] **Protect mutating web routes.** Files: `apps/web/src/app/api/**/route.ts`. Apply permissions to existing approve, reject, draft-edit, and contact-update routes. Acceptance: readonly sessions cannot approve/reject via direct HTTP calls. **(opus)**
-- [ ] **Reconcile auth docs and implementation.** Files: `TODO.md`, `README.md`, `PLAN.md`, `ROADMAP.md`. Decide whether custom local auth remains the v0 path or better-auth is still required. Acceptance: docs stop describing already-shipped auth as future work. **(sonnet)**
+- [x] **Reconcile auth docs and implementation.** Files: `TODO.md`, `README.md`, `PLAN.md`, `ROADMAP.md`. Decide whether custom local auth remains the v0 path or better-auth is still required. Acceptance: docs stop describing already-shipped auth as future work. **(sonnet)**
 - [ ] **Add invite/multi-user onboarding.** Files: `packages/auth`, `packages/db`, `apps/web`. Admin can invite a user, set role, revoke/disable, and reset credentials. Acceptance: invited readonly users can sign in but cannot mutate. **(opus)**
 
 ### Core domain and adapter architecture
@@ -75,7 +75,7 @@ This section reflects the current codebase state after the first local web/admin
 
 - [ ] **Write single-Mac deployment docs.** Files: `docs/deployment.md`, `README.md`. Include prerequisites, env, DB migration, local admin bootstrap/reset, launchd services, troubleshooting, and remote dev origins. Acceptance: fresh machine setup can follow docs without tribal knowledge. **(sonnet)**
 - [x] **Polish status/ops output.** Files: `apps/cli/src/index.ts`. Separate historical archived errors from new failures; show last sent time and queue trend. Acceptance: `admin status` no longer reads like an error when only old archived errors exist. **(haiku)**
-- [ ] **Refresh public project docs.** Files: `README.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`. Replace stale "pre-implementation" and update milestone state. Acceptance: docs match what the app can currently do. **(sonnet)**
+- [x] **Refresh public project docs.** Files: `README.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`. Replace stale "pre-implementation" and update milestone state. Acceptance: docs match what the app can currently do. **(sonnet)**
 - [x] **Add release smoke checklist.** Files: `docs/deployment.md` or `docs/release-smoke.md`. Include local web login, approvals, status, imsg-agent services, and remote server checks. Acceptance: checklist catches the recent module/dev-origin/send-service issues. **(haiku)**
 
 ## Milestone v0.1 — Foundations & Read-Only Browse

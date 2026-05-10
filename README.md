@@ -2,7 +2,7 @@
 
 The open-source, AGPL-3.0 communications hub. **Humans review, approve, reject, and schedule messages across every channel they care about** — starting with iMessage and growing to Discord, email, WhatsApp, SMS, Slack, and Signal. Built so AI agents can propose replies, but only humans can send them.
 
-> **Status:** Pre-implementation. Architecture and milestones are defined; coding begins with the [v0.1 milestone](ROADMAP.md#v01--foundations--read-only-browse).
+> **Status:** Local-first v0 is in progress. The repo now has a working Next.js web app, local email/password auth, iMessage conversation/contact/draft reads, admin-gated approve/reject/edit flows, scheduling primitives, and operator CLI commands. MCP tools, invite onboarding, contact correction, and schedule UI are still upcoming.
 
 ## Why this exists
 
@@ -24,7 +24,7 @@ Read [VISION.md](VISION.md) for the full reasoning.
 
 ```
   Browser ─────► apps/web (Next.js)  ─┐
-  Terminal ───► apps/cli (Ink TUI)  ─┼─► packages/core ─► packages/adapters/{imessage, discord, …}
+  Terminal ───► apps/cli (operator CLI) ─┼─► packages/core ─► packages/adapters/{imessage, discord, …}
   commsbot99 ─► apps/mcp (MCP)      ─┘                           │
                                                                  ▼
                             ┌──────────────────────┐  ┌────────────────────┐
@@ -65,19 +65,20 @@ Full architecture in [PLAN.md](PLAN.md).
 
 ## Stack
 
-TypeScript end-to-end. Next.js 15 + React 19 for the web app. Drizzle + SQLite for the hub's own data. better-auth for sessions and roles. `@modelcontextprotocol/sdk` for both MCP server and client. Ink for the TUI. Bun + Turborepo. Biome for lint/format. Vitest + Playwright for tests. Multi-arch CI (linux-amd64, linux-arm64, macos-arm64).
+TypeScript end-to-end. Next.js 15 + React 19 for the web app. Drizzle + SQLite for the hub's own data. Custom local email/password auth with admin/readonly roles. `@modelcontextprotocol/sdk` for MCP surfaces. A Node-based operator CLI. Bun + Turborepo. Biome for lint/format. Vitest for unit/integration tests.
 
 Full table in [PLAN.md § Stack](PLAN.md#stack).
 
-## Running locally (after v0.1 lands)
+## Running locally
 
 ```bash
 bun install
-cp .env.example .env                # set INITIAL_ADMIN_EMAIL, IMSG_DATA_DIR
-bun run db:migrate
-bun run db:seed
-bun run dev                        # apps/web on :3000
+bun run --filter @commshub99/db db:migrate
+bun run --filter @commshub99/cli admin users:create --email you@example.com --role admin
+bun run dev                         # apps/web on :3000
 ```
+
+Set `IMSG_DATA_DIR` if imsg-agent data is somewhere other than `~/imsg-data`.
 
 ## Contributing
 

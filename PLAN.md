@@ -2,7 +2,7 @@
 
 This document describes *what* commshub99 is and *how* it is built. For *why*, see [VISION.md](VISION.md). For *when*, see [ROADMAP.md](ROADMAP.md).
 
-> **Status:** Pre-implementation. The repository is empty except for the AGPL license, README stub, and this planning set. All architectural choices below are starting points; revise them in PRs as the project evolves.
+> **Status:** Local-first v0 is actively implemented. The web app, local auth, iMessage adapter reads, draft approve/reject/edit actions, audit logging, scheduling primitives, and operator CLI now exist. This plan remains the target architecture; sections below call out intended direction even where the current implementation is still thinner.
 
 ## At a glance
 
@@ -11,7 +11,7 @@ This document describes *what* commshub99 is and *how* it is built. For *why*, s
                   │            commshub99 monorepo         │
                   │                                        │
   Browser ──────► │  apps/web (Next.js)  ─┐                │
-  Terminal ────► │  apps/cli (Ink TUI)  ─┼──► packages/core│
+  Terminal ────► │  apps/cli (operator) ─┼──► packages/core│
   commsbot99 ──► │  apps/mcp (MCP)      ─┘    │            │
                   │                            ▼            │
                   │                packages/adapters/*      │
@@ -40,14 +40,14 @@ This document describes *what* commshub99 is and *how* it is built. For *why*, s
 | Language         | TypeScript 5.7+                              | Single language across web, CLI, MCP server, adapters. Largest contributor pool for an OSS project.             |
 | Runtime          | Node 22 LTS (production), Bun 1.x (dev)      | Bun for fast local dev and tests; Node for stable production deploys. Code stays runtime-agnostic where feasible. |
 | Web framework    | Next.js 15 (App Router, RSC)                 | Mature accessibility tooling, SSR for fast first paint on dad's hardware, broad contributor familiarity.        |
-| UI library       | React 19                                     | Same component model in web and TUI (via Ink).                                                                  |
+| UI library       | React 19                                     | Component model for the web app; shared UI package remains available as surfaces grow.                          |
 | Styling          | Tailwind CSS + shadcn/ui (Radix primitives)  | Radix gives WCAG-compliant primitives out of the box. Tailwind keeps styling local.                             |
 | Forms / state    | TanStack Query + React Hook Form + Zod       | Server state separated from form state. Zod schemas double as runtime validators and adapter contracts.         |
-| TUI              | Ink 5                                        | React renderer for terminals. Reuses presentation logic from web.                                               |
+| CLI              | Node CLI                                     | Current operator surface for status, pending drafts, approve/reject/edit, scheduling, and tail output.          |
 | ORM              | Drizzle                                      | Typed SQL, low magic, SQLite-first with Postgres dialect ready when we scale.                                   |
 | DB (own data)    | SQLite via `better-sqlite3`                  | Users, sessions, scheduled sends, audit, per-tenant config. Single file, easy backup.                           |
 | DB (iMessage)    | `better-sqlite3` read-only                   | Direct read of `~/imsg-data/imessage.sqlite`. We never write to imsg-agent's archive.                           |
-| Auth             | better-auth                                  | Plugin-based; start with email+password admin/readonly, extend to OAuth/OIDC later without rewrite.             |
+| Auth             | Custom local auth                            | Email+password users, DB-backed sessions, admin/readonly roles, and pure permission checks.                     |
 | MCP              | `@modelcontextprotocol/sdk`                  | Server (for commsbot99 to drive us) and client (to talk to contacts-mcp).                                       |
 | Real-time        | Server-Sent Events                           | Simpler than websockets, sufficient for new-message and draft-state pushes, works through reverse proxies.      |
 | Tests            | Vitest (unit/integration) + Playwright (e2e) | Vitest aligns with contacts-mcp; Playwright for accessibility audits via axe.                                   |
@@ -64,12 +64,12 @@ Anything on this list can be swapped if a contributor has a strong reason. The p
 commshub99/
 ├── apps/
 │   ├── web/                 Next.js — primary surface
-│   ├── cli/                 Ink TUI + commander CLI
+│   ├── cli/                 Operator CLI
 │   └── mcp/                 MCP server (exposes hub to commsbot99)
 ├── packages/
 │   ├── core/                Domain types, services, ports (no I/O)
 │   ├── db/                  Drizzle schema + migrations for hub's own DB
-│   ├── auth/                better-auth config + role/permission helpers
+│   ├── auth/                Local auth + role/permission helpers
 │   ├── ui/                  Shared React components (web + TUI splits where needed)
 │   ├── mcp-client/          Wrapper for contacts-mcp and other MCP clients
 │   └── adapters/
@@ -110,23 +110,23 @@ commshub99/
 
 ### Reviewing and approving a draft
 
-1. iMessage adapter watches `~/imsg-data/drafts/` (chokidar) and parses Markdown frontmatter into `ProposedMessage` objects.
-2. Draft list pushed to clients via SSE.
-3. User clicks **Approve** in the web UI.
+1. iMessage adapter scans `~/imsg-data/chats/**/drafts/*.md` and parses Markdown frontmatter into `ProposedMessage` objects.
+2. Web/CLI fetch the draft list on demand. SSE is still planned for live updates.
+3. User holds **Approve** in the web UI or runs the CLI approve command.
 4. Web app calls `apps/web/api/drafts/[id]/approve` route.
-5. Route handler validates user permission (admin), calls `core.DraftService.approve(id, edits?)`.
-6. DraftService asks the iMessage adapter to approve.
-7. iMessage adapter (a) writes any edited body back to the Markdown file, (b) sets `approved: true` in frontmatter, (c) moves the file from `~/imsg-data/drafts/` to `~/imsg-data/outbox/`.
+5. Route handler validates user permission (admin), writes audit, and calls the iMessage adapter action. Moving this fully behind `core.DraftService` is the architectural direction.
+6. iMessage adapter writes any edited body back to the Markdown file and atomically creates an outbox item in `~/imsg-data/outbox/`.
+7. Adapter actions are idempotent for approve/reject retry when the destination artifact already exists.
 8. imsg-agent's existing send loop picks the file up and sends it. We do not implement send.
 9. Audit row written to hub's own DB: who approved, when, with what edits.
 
 ### Scheduling a send
 
 1. User picks **Schedule** instead of **Approve**, sets a future timestamp.
-2. DraftService writes a row to hub DB: `scheduled_sends(id, draft_id, channel, send_at, status='pending', requested_by, requested_at)`.
+2. ScheduleService writes a row to hub DB: `scheduled_sends(id, draft_id, channel_id, send_at, status='pending', requested_by_user_id, created_at, updated_at)`.
 3. The draft Markdown stays in `~/imsg-data/drafts/` with `approved: false`.
-4. A background worker (`apps/mcp` hosts it; on the web tier in single-process deployments) wakes every 30s, finds rows where `send_at <= now() AND status='pending'`, and runs the same approve flow as above.
-5. Status transitions: `pending → sent | failed | cancelled`. Failures retry with backoff up to N attempts, then leave the draft in `drafts/` and surface the error.
+4. A worker helper finds rows where `send_at <= now()` and status is retryable, then runs the approve flow.
+5. Status transitions: `pending → sending → sent | failed | cancelled`. Failures retry up to the configured max attempts, then remain failed for operator review.
 
 ### Identity resolution
 
@@ -193,10 +193,10 @@ A single SQLite file (`~/.commshub99/hub.db` by default; configurable). Drizzle 
 Tables:
 
 - `users` — id, email, name, password_hash, role (`admin` | `readonly`), created_at, last_login_at, disabled.
-- `sessions` — managed by better-auth.
+- `sessions` — local DB-backed session tokens.
 - `tenants` — id, name, owner_user_id, created_at. (One row in v1; the column exists so we don't have to migrate later.)
 - `tenant_users` — tenant_id, user_id, role.
-- `scheduled_sends` — id, tenant_id, draft_ref (channel+id), send_at, status, attempts, last_error, requested_by, requested_at, sent_at.
+- `scheduled_sends` — id, tenant_id, draft_id, channel_id, send_at, status, attempts, last_error, requested_by_user_id, created_at, updated_at.
 - `audit_log` — id, tenant_id, user_id, action, target_type, target_id, payload_json, created_at. Append-only.
 - `channel_configs` — tenant_id, channel_id, config_json, enabled. Where credentials and per-channel settings live.
 - `contact_link_overrides` — tenant_id, channel_id, handle, contact_id, created_by, created_at. User-corrected handle→contact mappings that override `chat_contact_matches`.
@@ -205,11 +205,11 @@ Schema details and migration strategy in [docs/data-model.md](docs/data-model.md
 
 ## Auth and roles
 
-- **better-auth** handles sessions and password hashing.
+- **Custom local auth** handles password hashing, DB-backed sessions, local admin bootstrap, and role changes.
 - Two roles in v1: `admin` (full read+write+approve+config) and `readonly` (browse only, no approval, no config).
 - Permission checks live in `packages/auth/permissions.ts` as pure functions; every route handler and MCP tool calls one.
 - Audit log captures every state-changing action with `user_id` and a JSON payload.
-- Pluggable providers (OAuth, OIDC, magic links) added by configuring better-auth plugins; no code changes to call sites.
+- Pluggable providers (OAuth, OIDC, magic links) are future work and should preserve the current `PublicUser` and permission APIs.
 
 For the founding family deployment, the admin invites users by email; invitee sets a password on first sign-in. Remote access is over Tailscale or whatever the user's network allows; commshub99 does not bundle a tunnel.
 
