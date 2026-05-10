@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "lint": "biome check .",
     "format": "biome format --write .",
+    "upgrade": "bun install && bun run db:migrate",
     "check:licenses": "node --import tsx tools/scripts/license-headers.ts",
     "db:generate": "bun run --filter @commshub99/db db:generate",
     "db:migrate": "bun run --filter @commshub99/db db:migrate",

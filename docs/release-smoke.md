@@ -5,7 +5,8 @@ Run this before pushing a release, deploying a remote dev server, or changing im
 
 ## Local App
 
-- [ ] `bun install`
+- [ ] `bun run upgrade`
+- [ ] Confirm upgrade output includes `Applied migrations`.
 - [ ] `bun run typecheck`
 - [ ] `bun run lint`
 - [ ] `bun run test`

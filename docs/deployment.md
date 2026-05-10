@@ -17,7 +17,7 @@ This guide is for the local-first setup where imsg-agent, contacts-mcp, and comm
 ```bash
 git clone https://github.com/zobrist/commshub99.git
 cd commshub99
-bun install
+bun run upgrade
 bun run typecheck
 bun run lint
 bun run test
@@ -43,8 +43,9 @@ For remote Next.js development, add the remote browser origin to `apps/web/next.
 
 ## Database And First Admin
 
+`bun run upgrade` applies database migrations. Re-run it after pulling new commits or deploying a new build.
+
 ```bash
-bun run --filter @commshub99/db db:migrate
 bun run --filter @commshub99/cli admin users:create --email you@example.com --role admin
 ```
 

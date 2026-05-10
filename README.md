@@ -73,8 +73,7 @@ Full table in [PLAN.md § Stack](PLAN.md#stack).
 ## Running locally
 
 ```bash
-bun install
-bun run --filter @commshub99/db db:migrate
+bun run upgrade
 bun run --filter @commshub99/cli admin users:create --email you@example.com --role admin
 bun run dev                         # apps/web on :3000
 ```
