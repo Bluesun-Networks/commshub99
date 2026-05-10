@@ -80,6 +80,16 @@ describe("iMessage draft actions", () => {
     expect(readFileSync(outboxPath(), "utf8")).toContain('source_draft_uuid: "draft-1"');
   });
 
+  it("approves the saved edited draft body", async () => {
+    writeDraft();
+
+    await updateImessageDraft("draft-1", "Edited before approve");
+    await approveImessageDraft("draft-1");
+
+    expect(readFileSync(outboxPath(), "utf8")).toContain("Edited before approve\n");
+    expect(readFileSync(outboxPath(), "utf8")).not.toContain("Hello there");
+  });
+
   it("treats approve retry as complete when the outbox item already exists", async () => {
     writeDraft();
     await mkdir(join(tempDir, "outbox"), { recursive: true });
