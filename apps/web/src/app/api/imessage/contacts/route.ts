@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { listImessageContactConversationCounts } from "@commshub99/adapter-imessage";
-import { type ContactsMcpContact, listContactsFromContactsMcp } from "@commshub99/mcp-client";
+import {
+  ContactsMcpClientError,
+  type ContactsMcpContact,
+  listContactsFromContactsMcp,
+} from "@commshub99/mcp-client";
 import { NextResponse } from "next/server";
 import { requireAuthenticatedRequest } from "../../_auth";
 
@@ -60,7 +64,18 @@ export async function GET(request: Request) {
     );
   }
 
-  const contactsMcpContacts = await listContactsFromContactsMcp();
+  let contactsMcpContacts: ContactsMcpContact[];
+  let contactsError: { code: string; message: string } | null = null;
+
+  try {
+    contactsMcpContacts = await listContactsFromContactsMcp();
+  } catch (error) {
+    contactsMcpContacts = [];
+    contactsError =
+      error instanceof ContactsMcpClientError
+        ? { code: error.code, message: error.message }
+        : { code: "contacts_unavailable", message: "Contacts are unavailable" };
+  }
 
   const contacts = contactsMcpContacts.map((contact) => ({
     birthday: contact.birthday ?? "",
@@ -89,6 +104,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     contacts,
+    contactsError,
     databasePath,
   });
 }

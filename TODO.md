@@ -62,7 +62,7 @@ This section reflects the current codebase state after the first local web/admin
 
 ### Contacts and identity
 
-- [ ] **Harden contacts MCP client.** Files: `packages/mcp-client/src/client.ts`, `packages/mcp-client/src/contacts.ts`. Add reconnect, timeout, structured errors, and 10 minute in-memory cache. Acceptance: contacts failure degrades gracefully in conversations/approvals. **(sonnet)**
+- [x] **Harden contacts MCP client.** Files: `packages/mcp-client/src/client.ts`, `packages/mcp-client/src/contacts.ts`. Add reconnect, timeout, structured errors, and 10 minute in-memory cache. Acceptance: contacts failure degrades gracefully in conversations/approvals. **(sonnet)**
 - [ ] **Complete contact linking/correction.** Files: `apps/web`, `packages/core`, iMessage adapter. User can correct a handle-to-contact match and see it persist. Acceptance: corrected match affects conversation and approval display names. **(sonnet)**
 
 ### CLI, MCP, and automation surfaces

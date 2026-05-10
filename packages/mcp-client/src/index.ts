@@ -26,6 +26,25 @@ type ToolCallResult = {
   isError?: boolean;
 };
 
+const contactsCacheTtlMs = 10 * 60 * 1000;
+
+let contactsCache:
+  | {
+      contacts: ContactsMcpContact[];
+      fetchedAt: number;
+    }
+  | undefined;
+
+export class ContactsMcpClientError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string, cause?: unknown) {
+    super(message, { cause });
+    this.code = code;
+    this.name = "ContactsMcpClientError";
+  }
+}
+
 export type ContactsMcpContactPoint = {
   originalValue?: string;
   primary?: boolean;
@@ -111,10 +130,29 @@ function waitForResponse(responses: Map<number, JsonRpcResponse>, id: number, ti
   });
 }
 
+function contactsMcpTimeoutMs() {
+  const configured = Number(process.env.CONTACTS_MCP_TIMEOUT_MS);
+
+  return Number.isFinite(configured) && configured > 0 ? configured : 10_000;
+}
+
+function cachedContacts() {
+  if (!contactsCache) {
+    return null;
+  }
+
+  if (Date.now() - contactsCache.fetchedAt > contactsCacheTtlMs) {
+    contactsCache = undefined;
+    return null;
+  }
+
+  return contactsCache.contacts;
+}
+
 export async function callContactsMcpTool<T>(
   name: string,
   args: Record<string, unknown>,
-  timeoutMs = 10_000,
+  timeoutMs = contactsMcpTimeoutMs(),
 ) {
   const command = contactsMcpCommand();
   const child = spawn(command.command, command.args, {
@@ -159,7 +197,7 @@ export async function callContactsMcpTool<T>(
     const initResponse = await waitForResponse(responses, 1, timeoutMs);
 
     if (initResponse.error) {
-      throw new Error(initResponse.error.message);
+      throw new ContactsMcpClientError("initialize_failed", initResponse.error.message);
     }
 
     send(child, 2, "tools/call", {
@@ -169,19 +207,25 @@ export async function callContactsMcpTool<T>(
     const toolResponse = await waitForResponse(responses, 2, timeoutMs);
 
     if (toolResponse.error) {
-      throw new Error(toolResponse.error.message);
+      throw new ContactsMcpClientError("tool_failed", toolResponse.error.message);
     }
 
     const result = toolResponse.result as ToolCallResult | undefined;
 
     if (result?.isError) {
-      throw new Error(result.content?.[0]?.text ?? `contacts-mcp tool ${name} failed`);
+      throw new ContactsMcpClientError(
+        "tool_returned_error",
+        result.content?.[0]?.text ?? `contacts-mcp tool ${name} failed`,
+      );
     }
 
     const text = result?.content?.find((item) => item.type === "text")?.text;
 
     if (!text) {
-      throw new Error(`contacts-mcp tool ${name} returned no text content`);
+      throw new ContactsMcpClientError(
+        "missing_text_content",
+        `contacts-mcp tool ${name} returned no text content`,
+      );
     }
 
     return JSON.parse(text) as T;
@@ -189,16 +233,32 @@ export async function callContactsMcpTool<T>(
     const detail = stderr.trim();
 
     if (detail && error instanceof Error) {
-      throw new Error(`${error.message}: ${detail}`);
+      throw new ContactsMcpClientError(
+        error instanceof ContactsMcpClientError ? error.code : "contacts_mcp_failed",
+        `${error.message}: ${detail}`,
+        error,
+      );
     }
 
-    throw error;
+    throw error instanceof ContactsMcpClientError
+      ? error
+      : new ContactsMcpClientError(
+          "contacts_mcp_failed",
+          error instanceof Error ? error.message : "contacts-mcp failed",
+          error,
+        );
   } finally {
     child.kill();
   }
 }
 
 export async function listContactsFromContactsMcp() {
+  const cached = cachedContacts();
+
+  if (cached) {
+    return cached;
+  }
+
   const directory = join(tmpdir(), "commshub99");
   const outputPath = join(directory, `contacts-${randomUUID()}.json`);
 
@@ -211,8 +271,33 @@ export async function listContactsFromContactsMcp() {
       outputPath,
     });
 
-    return JSON.parse(await readFile(outputPath, "utf8")) as ContactsMcpContact[];
+    const contacts = JSON.parse(await readFile(outputPath, "utf8")) as ContactsMcpContact[];
+
+    contactsCache = {
+      contacts,
+      fetchedAt: Date.now(),
+    };
+
+    return contacts;
+  } catch (error) {
+    const staleContacts = contactsCache?.contacts;
+
+    if (staleContacts) {
+      return staleContacts;
+    }
+
+    throw error instanceof ContactsMcpClientError
+      ? error
+      : new ContactsMcpClientError(
+          "contacts_export_failed",
+          error instanceof Error ? error.message : "Could not export contacts",
+          error,
+        );
   } finally {
     await rm(outputPath, { force: true });
   }
+}
+
+export function clearContactsMcpCacheForTest() {
+  contactsCache = undefined;
 }
