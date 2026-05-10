@@ -13,6 +13,12 @@ export { ConversationService } from "./services/conversation.js";
 export { DraftService } from "./services/draft.js";
 export { MessageService } from "./services/message.js";
 export {
+  type CreateScheduledSendInput,
+  type ScheduledSendRecord,
+  type ScheduledSendStatus,
+  ScheduleService,
+} from "./services/schedule.js";
+export {
   type Attachment,
   attachmentSchema,
   type ChannelId,
@@ -36,3 +42,7 @@ export {
   type Reaction,
   reactionSchema,
 } from "./types.js";
+export {
+  type RunDueScheduledSendsOptions,
+  runDueScheduledSends,
+} from "./workers/schedule.js";
