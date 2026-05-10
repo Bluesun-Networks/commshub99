@@ -48,8 +48,9 @@ Full architecture in [PLAN.md](PLAN.md).
 | [TODO.md](TODO.md)                          | Actionable tasks with suggested AI-coder model per item.      |
 | [CLAUDE.md](CLAUDE.md)                      | How AI coders should work in this repo.                       |
 | [docs/channel-adapters.md](docs/channel-adapters.md) | The contract for adding a new channel.                |
+| [docs/release-smoke.md](docs/release-smoke.md) | Checks before release or remote dev deploy.                |
 
-`docs/data-model.md`, `docs/deployment.md`, and `docs/accessibility.md` will land alongside the v0.1 work.
+`docs/data-model.md`, `docs/deployment.md`, and `docs/accessibility.md` will land as those surfaces harden.
 
 ## Project values
 
