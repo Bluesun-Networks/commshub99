@@ -67,7 +67,7 @@ This section reflects the current codebase state after the first local web/admin
 
 ### CLI, MCP, and automation surfaces
 
-- [ ] **Build operator CLI workflows.** Files: `apps/cli/src/index.ts` or Ink/commander split. Add pending, approve, reject, schedule, and tail. Acceptance: CLI can approve a temp draft without web UI. **(sonnet)**
+- [x] **Build operator CLI workflows.** Files: `apps/cli/src/index.ts` or Ink/commander split. Add pending, approve, reject, schedule, and tail. Acceptance: CLI can approve a temp draft without web UI. **(sonnet)**
 - [ ] **Implement MCP server tools.** Files: `apps/mcp/src/index.ts`, `packages/core`. Add list pending, get proposed, approve, reject, schedule, cancel, search, and audit tools. Acceptance: tools enforce same permissions as web. **(opus)**
 - [ ] **Add API tokens.** Files: `packages/db`, `packages/auth`, `apps/mcp`, `apps/cli`. Tokens are hashed at rest, scoped to users, revocable, and audited. Acceptance: MCP/CLI token auth cannot bypass role restrictions. **(opus)**
 

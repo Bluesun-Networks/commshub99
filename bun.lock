@@ -17,7 +17,9 @@
       "name": "@commshub99/cli",
       "version": "0.0.1",
       "dependencies": {
+        "@commshub99/adapter-imessage": "workspace:*",
         "@commshub99/auth": "workspace:*",
+        "@commshub99/core": "workspace:*",
         "@commshub99/db": "workspace:*",
         "better-sqlite3": "^12.9.0",
       },

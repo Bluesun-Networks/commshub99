@@ -6,10 +6,12 @@
   "scripts": {
     "admin": "node --import tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "bun run --filter @commshub99/db build && bun run --filter @commshub99/auth build && tsc -p tsconfig.json --noEmit"
+    "typecheck": "bun run --filter @commshub99/db build && bun run --filter @commshub99/auth build && bun run --filter @commshub99/adapter-imessage build && bun run --filter @commshub99/core build && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@commshub99/adapter-imessage": "workspace:*",
     "@commshub99/auth": "workspace:*",
+    "@commshub99/core": "workspace:*",
     "@commshub99/db": "workspace:*",
     "better-sqlite3": "^12.9.0"
   },

@@ -5,6 +5,12 @@ import { accessSync, constants, existsSync, readdirSync, readFileSync, statSync 
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
+  approveImessageDraft,
+  listImessageDrafts,
+  rejectImessageDraft,
+  updateImessageDraft,
+} from "@commshub99/adapter-imessage";
+import {
   clearLocalAdminUserSessions,
   createLocalAdminUser,
   listLocalAdminUsers,
@@ -12,7 +18,8 @@ import {
   setLocalAdminUserDisabled,
   setLocalAdminUserRole,
 } from "@commshub99/auth";
-import { resolveDatabasePath } from "@commshub99/db";
+import { ScheduleService } from "@commshub99/core";
+import { createDbClient, resolveDatabasePath } from "@commshub99/db";
 import Database from "better-sqlite3";
 
 type Role = "admin" | "readonly";
@@ -24,6 +31,12 @@ Anyone with shell access to the host can manage local app users.
 
 Usage:
   bun run --filter @commshub99/cli admin status
+  bun run --filter @commshub99/cli admin pending
+  bun run --filter @commshub99/cli admin approve UUID
+  bun run --filter @commshub99/cli admin edit UUID --text TEXT
+  bun run --filter @commshub99/cli admin reject UUID [--note NOTE]
+  bun run --filter @commshub99/cli admin schedule UUID --at ISO_DATETIME
+  bun run --filter @commshub99/cli admin tail
   bun run --filter @commshub99/cli admin users:list
   bun run --filter @commshub99/cli admin users:create --email EMAIL [--name NAME] [--role admin|readonly] [--password PASSWORD]
   bun run --filter @commshub99/cli admin users:reset-password --email EMAIL [--password PASSWORD]
@@ -378,6 +391,114 @@ function printPassword(password: string) {
   console.log("Store it now; commshub99 will not be able to show it again.");
 }
 
+function positional(index: number) {
+  return process.argv[index] ?? "";
+}
+
+function requirePositional(index: number, label: string) {
+  const value = positional(index).trim();
+
+  if (!value) {
+    throw new Error(`${label} is required`);
+  }
+
+  return value;
+}
+
+async function printPendingDrafts() {
+  const drafts = await listImessageDrafts();
+
+  if (drafts.length === 0) {
+    console.log("No pending drafts.");
+    return;
+  }
+
+  console.table(
+    drafts.map((draft) => ({
+      chatId: draft.chatId,
+      createdAt: draft.createdAt,
+      preview: draft.text.replace(/\s+/g, " ").slice(0, 80),
+      sourceRowid: draft.sourceRowid ?? "",
+      target: draft.targetIdentifier,
+      uuid: draft.uuid,
+    })),
+  );
+}
+
+function defaultTenantId() {
+  const client = createDbClient({ readonly: true });
+
+  try {
+    const tenant = client.sqlite.prepare("SELECT id FROM tenants LIMIT 1").get() as
+      | { id?: string }
+      | undefined;
+
+    if (!tenant?.id) {
+      throw new Error("No tenant exists. Create a local admin user first.");
+    }
+
+    return tenant.id;
+  } finally {
+    client.close();
+  }
+}
+
+async function approvePendingDraft(uuid: string) {
+  const result = await approveImessageDraft(uuid);
+
+  console.log(`${result.alreadyCompleted ? "Already queued" : "Queued"} ${uuid} for imsg-agent.`);
+}
+
+async function rejectPendingDraft(uuid: string) {
+  const result = await rejectImessageDraft(uuid, option("--note").trim());
+
+  console.log(
+    `${result.alreadyCompleted ? "Already rejected" : "Rejected"} ${uuid}; rules review: ${
+      result.rulesReviewStatus ?? "not_requested"
+    }.`,
+  );
+}
+
+async function editPendingDraft(uuid: string) {
+  const text = requireOption("--text");
+
+  await updateImessageDraft(uuid, text);
+  console.log(`Updated draft ${uuid}.`);
+}
+
+function schedulePendingDraft(uuid: string) {
+  const sendAt = new Date(requireOption("--at"));
+
+  if (Number.isNaN(sendAt.getTime())) {
+    throw new Error("--at must be a valid ISO date/time.");
+  }
+
+  const scheduled = new ScheduleService().create({
+    channelId: "imessage",
+    draftId: `imessage:draft:${uuid}`,
+    sendAt,
+    tenantId: defaultTenantId(),
+  });
+
+  console.log(`Scheduled ${uuid} for ${scheduled?.sendAt.toISOString()}.`);
+}
+
+function printTail() {
+  const dataDir = resolveImsgDataDir();
+  const latestSent = latestFile(join(dataDir, "sent"));
+  const latestError = latestFile(join(dataDir, "errors"));
+
+  console.log("recent imsg-agent activity");
+  console.log(
+    `sent: ${latestSent ? `${latestSent.name} (${displayTimestamp(latestSent.mtimeMs)})` : "none"}`,
+  );
+  console.log(
+    `archived error: ${
+      latestError ? `${latestError.name} (${displayTimestamp(latestError.mtimeMs)})` : "none"
+    }`,
+  );
+}
+
 async function main() {
   const command = process.argv[2];
 
@@ -391,6 +512,30 @@ async function main() {
 
     case "status":
       await printStatus();
+      return;
+
+    case "pending":
+      await printPendingDrafts();
+      return;
+
+    case "approve":
+      await approvePendingDraft(requirePositional(3, "UUID"));
+      return;
+
+    case "reject":
+      await rejectPendingDraft(requirePositional(3, "UUID"));
+      return;
+
+    case "edit":
+      await editPendingDraft(requirePositional(3, "UUID"));
+      return;
+
+    case "schedule":
+      schedulePendingDraft(requirePositional(3, "UUID"));
+      return;
+
+    case "tail":
+      printTail();
       return;
 
     case "users:list":
