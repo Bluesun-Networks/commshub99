@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { rejectImessageDraft, updateImessageDraft } from "@commshub99/adapter-imessage";
-import { writeAuditLog } from "@commshub99/core";
 import { NextResponse } from "next/server";
+import { writeRouteAuditLog } from "../../../_audit";
 import { requirePermissionRequest } from "../../../_auth";
 
 export const runtime = "nodejs";
@@ -33,7 +33,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ uu
   try {
     const result = await updateImessageDraft(uuid, text);
 
-    writeAuditLog({
+    writeRouteAuditLog({
       action: "draft.edit",
       payload: {
         path: result.draftPath,
@@ -72,7 +72,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ u
   try {
     const result = await rejectImessageDraft(uuid, futureNote);
 
-    writeAuditLog({
+    writeRouteAuditLog({
       action: "draft.reject",
       payload: {
         alreadyCompleted: result.alreadyCompleted ?? false,

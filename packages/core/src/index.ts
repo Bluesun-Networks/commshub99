@@ -8,7 +8,12 @@ export {
   type ListMessagesOptions,
   type ListProposedMessagesOptions,
 } from "./registry.js";
-export { type WriteAuditLogInput, writeAuditLog } from "./services/audit.js";
+export {
+  type TryWriteAuditLogResult,
+  tryWriteAuditLog,
+  type WriteAuditLogInput,
+  writeAuditLog,
+} from "./services/audit.js";
 export { ConversationService } from "./services/conversation.js";
 export { DraftService } from "./services/draft.js";
 export { MessageService } from "./services/message.js";

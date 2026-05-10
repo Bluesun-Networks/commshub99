@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { approveImessageDraft } from "@commshub99/adapter-imessage";
-import { writeAuditLog } from "@commshub99/core";
 import { NextResponse } from "next/server";
+import { writeRouteAuditLog } from "../../../../_audit";
 import { requirePermissionRequest } from "../../../../_auth";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ uui
   try {
     const result = await approveImessageDraft(uuid);
 
-    writeAuditLog({
+    writeRouteAuditLog({
       action: "draft.approve",
       payload: {
         alreadyCompleted: result.alreadyCompleted ?? false,

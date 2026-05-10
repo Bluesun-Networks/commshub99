@@ -11,6 +11,18 @@ export interface WriteAuditLogInput {
   userId?: string | null;
 }
 
+export type TryWriteAuditLogResult =
+  | {
+      createdAt: Date;
+      id: string;
+      ok: true;
+      tenantId: string;
+    }
+  | {
+      error: Error;
+      ok: false;
+    };
+
 function resolveTenantId(userId: string | null | undefined, explicitTenantId?: string | null) {
   if (explicitTenantId) {
     return explicitTenantId;
@@ -83,5 +95,19 @@ export function writeAuditLog(input: WriteAuditLogInput) {
     };
   } finally {
     client.close();
+  }
+}
+
+export function tryWriteAuditLog(input: WriteAuditLogInput): TryWriteAuditLogResult {
+  try {
+    return {
+      ok: true,
+      ...writeAuditLog(input),
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error : new Error("Could not write audit log"),
+      ok: false,
+    };
   }
 }

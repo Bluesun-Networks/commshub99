@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDbClient } from "@commshub99/db";
 import { afterEach, describe, expect, it } from "vitest";
-import { writeAuditLog } from "./audit.js";
+import { tryWriteAuditLog, writeAuditLog } from "./audit.js";
 
 const tempDirs: string[] = [];
 const originalDbPath = process.env.COMMSHUB99_DB_PATH;
@@ -102,5 +102,35 @@ describe("writeAuditLog", () => {
     } finally {
       client.close();
     }
+  });
+
+  it("returns a best-effort error instead of throwing when audit infrastructure is missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "commshub99-audit-missing-"));
+    tempDirs.push(dir);
+    process.env.COMMSHUB99_DB_PATH = join(dir, "hub.db");
+
+    const client = createDbClient();
+    client.sqlite.exec(`
+      CREATE TABLE tenants (
+        id text PRIMARY KEY NOT NULL,
+        name text NOT NULL,
+        owner_user_id text NOT NULL,
+        created_at integer NOT NULL
+      );
+      INSERT INTO tenants (id, name, owner_user_id, created_at)
+        VALUES ('tenant-1', 'Home', 'user-1', 1);
+    `);
+    client.close();
+
+    const result = tryWriteAuditLog({
+      action: "draft.approve",
+      targetId: "draft-1",
+      targetType: "imessage_draft",
+      tenantId: "tenant-1",
+      userId: "user-1",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.ok ? "" : result.error.message).toContain("audit_log");
   });
 });
