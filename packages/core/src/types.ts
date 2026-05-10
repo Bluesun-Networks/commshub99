@@ -93,6 +93,62 @@ export const proposedMessageStatusSchema = z.enum([
 ]);
 export type ProposedMessageStatus = z.infer<typeof proposedMessageStatusSchema>;
 
+export const contextRelationshipCategorySchema = z.enum([
+  "family",
+  "friend",
+  "professional",
+  "service",
+  "unknown",
+]);
+export type ContextRelationshipCategory = z.infer<typeof contextRelationshipCategorySchema>;
+
+export const contextToneSchema = z.enum(["polite", "warm", "direct", "terse", "avoid_rude"]);
+export type ContextTone = z.infer<typeof contextToneSchema>;
+
+export const contextReplyPostureSchema = z.enum([
+  "do_not_reply",
+  "reply_if_needed",
+  "usually_reply",
+  "always_reply",
+]);
+export type ContextReplyPosture = z.infer<typeof contextReplyPostureSchema>;
+
+export const personalDetailBoundarySchema = z.enum([
+  "location",
+  "health_updates",
+  "daily_agenda",
+  "family_updates",
+]);
+export type PersonalDetailBoundary = z.infer<typeof personalDetailBoundarySchema>;
+
+export const contextProfileSchema = z.object({
+  allowedPersonalDetails: z.array(personalDetailBoundarySchema),
+  customPersonalDetails: z.array(z.string()),
+  customPrompt: z.string(),
+  displayName: z.string(),
+  id: z.string(),
+  notes: z.string(),
+  relationship: contextRelationshipCategorySchema,
+  replyPosture: contextReplyPostureSchema,
+  tenantId: z.string(),
+  tone: contextToneSchema,
+  updatedAt: z.string(),
+});
+export type ContextProfile = z.infer<typeof contextProfileSchema>;
+
+export const contactContextSchema = contextProfileSchema.extend({
+  contactKey: z.string(),
+  scope: z.literal("contact"),
+});
+export type ContactContext = z.infer<typeof contactContextSchema>;
+
+export const conversationContextSchema = contextProfileSchema.extend({
+  channelId: channelIdSchema,
+  roomKey: z.string(),
+  scope: z.literal("conversation"),
+});
+export type ConversationContext = z.infer<typeof conversationContextSchema>;
+
 export const proposedMessageSchema = z.object({
   approved: z.boolean(),
   chatId: z.string(),

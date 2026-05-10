@@ -22,6 +22,13 @@
       "when": 1778447448907,
       "tag": "0002_faulty_rocket_racer",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1778453565438,
+      "tag": "0003_aromatic_annihilus",
+      "breakpoints": true
     }
   ]
 }
