@@ -19,6 +19,11 @@ export {
   writeDraftMutationAudit,
 } from "./services/audit.js";
 export {
+  ContextService,
+  type ResolveContextInput,
+  type ResolvedContextBundle,
+} from "./services/context.js";
+export {
   ContextHistoryService,
   type ListContextVersionsInput,
   type RecordContextVersionInput,

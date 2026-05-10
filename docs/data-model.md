@@ -18,6 +18,11 @@ When a draft is generated or reviewed, the intended resolution order is:
 Privacy and safety constraints are conservative. `do_not_reply` and sharing boundaries take
 precedence over tone preferences or room-level defaults.
 
+`ContextService.resolve()` returns the contributing contact records, the room record, and an
+effective bundle. Reply posture uses the most restrictive value, `avoid_rude` wins over other tone
+choices, and personal-detail sharing uses intersection semantics so a detail is allowed only when
+all contributing context that declares boundaries allows it.
+
 ## Structured Choices
 
 Both contact and conversation context support the same structured fields:
