@@ -862,7 +862,7 @@ function Conversations({
       <div className="section-heading">
         <h2 id="conversations-heading">Browse Conversations</h2>
         <StatusBadge tone={error ? "waiting" : "ready"}>
-          {loading ? "Loading" : "Read-only live data"}
+          {loading ? "Loading" : `${conversations.length} conversations`}
         </StatusBadge>
       </div>
 
