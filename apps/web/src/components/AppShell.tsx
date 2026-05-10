@@ -44,7 +44,14 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Mode = "essentials" | "power";
-type View = "overview" | "conversations" | "contacts" | "approvals" | "people" | "settings";
+type View =
+  | "overview"
+  | "conversations"
+  | "contacts"
+  | "approvals"
+  | "context"
+  | "people"
+  | "settings";
 type Tone = "ready" | "waiting" | "warn";
 type ContactPoint = {
   kind: string;
@@ -79,6 +86,44 @@ type ScheduledSendView = {
   status: string;
   tenantId: string;
   updatedAt: string;
+};
+type ContextRecordView = {
+  allowedPersonalDetails: string[];
+  channelId?: string;
+  contactKey?: string;
+  customPersonalDetails: string[];
+  customPrompt: string;
+  displayName: string;
+  id: string;
+  notes: string;
+  relationship: string;
+  replyPosture: string;
+  roomKey?: string;
+  tenantId: string;
+  tone: string;
+  updatedAt: string;
+};
+type ContextSuggestionView = {
+  confidence: number;
+  contextType: "contact" | "conversation";
+  evidence: Array<{ rowid: number; snippet: string }>;
+  payload: {
+    allowedPersonalDetails: string[];
+    customPrompt: string;
+    displayName: string;
+    relationship: string;
+    replyPosture: string;
+    tone: string;
+  };
+  source: "harvest";
+  targetKey: string;
+};
+type ContextDataView = {
+  contactContexts: ContextRecordView[];
+  conversationContexts: ContextRecordView[];
+  harvestError: string | null;
+  suggestions: ContextSuggestionView[];
+  tenantId: string;
 };
 type ReviewWindowId = "day" | "48h" | "week" | "month" | "year";
 const holdConfirmMs = 1200;
@@ -116,6 +161,7 @@ const navItems = [
   { icon: <MessageCircle aria-hidden size={19} />, label: "Conversations", view: "conversations" },
   { icon: <UsersRound aria-hidden size={19} />, label: "Contacts", view: "contacts" },
   { icon: <ClipboardCheck aria-hidden size={19} />, label: "Approvals", view: "approvals" },
+  { icon: <Tag aria-hidden size={19} />, label: "Context", view: "context" },
   { icon: <UserPlus aria-hidden size={19} />, label: "People", view: "people" },
   { icon: <Settings aria-hidden size={19} />, label: "Settings", view: "settings" },
 ] satisfies Array<{ icon: ReactNode; label: string; view: View }>;
@@ -133,6 +179,10 @@ const reviewWindows = [
   { id: "month", label: "Last month", durationMs: 30 * 24 * 60 * 60 * 1000 },
   { id: "year", label: "Last year", durationMs: 365 * 24 * 60 * 60 * 1000 },
 ] satisfies Array<{ durationMs: number; id: ReviewWindowId; label: string }>;
+const contextRelationships = ["family", "friend", "professional", "service", "unknown"];
+const contextTones = ["polite", "warm", "direct", "terse", "avoid_rude"];
+const contextReplyPostures = ["do_not_reply", "reply_if_needed", "usually_reply", "always_reply"];
+const personalDetailChoices = ["location", "health_updates", "daily_agenda", "family_updates"];
 
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
   return <span className={`status status-${tone}`}>{children}</span>;
@@ -433,6 +483,17 @@ async function loadScheduledSends() {
   return payload.schedules ?? [];
 }
 
+async function loadContextData() {
+  const response = await fetch("/api/context", { cache: "no-store" });
+  const payload = (await response.json()) as ContextDataView & { error?: string };
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Could not load context");
+  }
+
+  return payload;
+}
+
 function toLocalDateTimeInputValue(date: Date) {
   const offsetMs = date.getTimezoneOffset() * 60_000;
 
@@ -570,6 +631,9 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
   const [draftsLoading, setDraftsLoading] = useState(true);
   const [mode, setMode] = useState<Mode>("essentials");
   const [schedules, setSchedules] = useState<ScheduledSendView[]>([]);
+  const [contextData, setContextData] = useState<ContextDataView | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const [contextLoading, setContextLoading] = useState(true);
 
   const refreshApprovals = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) {
@@ -597,6 +661,20 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
     }
   }, []);
 
+  const refreshContext = useCallback(async () => {
+    setContextLoading(true);
+    setContextError(null);
+
+    try {
+      setContextData(await loadContextData());
+    } catch (error) {
+      setContextError(error instanceof Error ? error.message : "Could not load context");
+      setContextData(null);
+    } finally {
+      setContextLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const savedMode = window.localStorage.getItem("commshub99:mode");
 
@@ -615,15 +693,23 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
       setContactError(null);
       setDraftsLoading(true);
       setDraftError(null);
+      setContextLoading(true);
+      setContextError(null);
 
       try {
-        const [conversationResponse, contactResponse, draftResponse, scheduleResponse] =
-          await Promise.all([
-            fetch("/api/imessage/conversations", { cache: "no-store" }),
-            fetch("/api/imessage/contacts", { cache: "no-store" }),
-            loadDraftProposals(),
-            loadScheduledSends(),
-          ]);
+        const [
+          conversationResponse,
+          contactResponse,
+          draftResponse,
+          scheduleResponse,
+          contextResponse,
+        ] = await Promise.all([
+          fetch("/api/imessage/conversations", { cache: "no-store" }),
+          fetch("/api/imessage/contacts", { cache: "no-store" }),
+          loadDraftProposals(),
+          loadScheduledSends(),
+          loadContextData(),
+        ]);
         const conversationPayload = (await conversationResponse.json()) as {
           conversations?: Conversation[];
           error?: string;
@@ -636,6 +722,7 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
         if (!ignore) {
           setDrafts(draftResponse);
           setSchedules(scheduleResponse);
+          setContextData(contextResponse);
         }
 
         if (!ignore) {
@@ -665,12 +752,15 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
           setContacts([]);
           setDraftError(message);
           setDrafts([]);
+          setContextError(message);
+          setContextData(null);
         }
       } finally {
         if (!ignore) {
           setConversationsLoading(false);
           setContactsLoading(false);
           setDraftsLoading(false);
+          setContextLoading(false);
         }
       }
     }
@@ -715,6 +805,10 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
 
     if (activeView === "contacts") {
       return "Contacts";
+    }
+
+    if (activeView === "context") {
+      return "Context";
     }
 
     if (activeView === "people") {
@@ -839,6 +933,15 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
             loading={draftsLoading}
             onRefresh={refreshApprovals}
             schedules={schedules}
+          />
+        ) : null}
+        {activeView === "context" ? (
+          <ContextView
+            canEditContext={currentUser.role === "admin"}
+            data={contextData}
+            error={contextError}
+            loading={contextLoading}
+            onRefresh={refreshContext}
           />
         ) : null}
         {activeView === "people" ? <People /> : null}
@@ -2592,6 +2695,399 @@ function Approvals({
           })}
         </div>
       ) : null}
+    </section>
+  );
+}
+
+function defaultContextDraft(scope: "contact" | "conversation"): ContextRecordView {
+  const draft: ContextRecordView = {
+    allowedPersonalDetails: [],
+    customPersonalDetails: [],
+    customPrompt: "",
+    displayName: "",
+    id: "",
+    notes: "",
+    relationship: "unknown",
+    replyPosture: "reply_if_needed",
+    tenantId: "",
+    tone: "warm",
+    updatedAt: "",
+  };
+
+  if (scope === "conversation") {
+    draft.channelId = "imessage";
+    draft.roomKey = "";
+  } else {
+    draft.contactKey = "";
+  }
+
+  return draft;
+}
+
+function ContextView({
+  canEditContext,
+  data,
+  error,
+  loading,
+  onRefresh,
+}: {
+  canEditContext: boolean;
+  data: ContextDataView | null;
+  error: string | null;
+  loading: boolean;
+  onRefresh: () => Promise<void>;
+}) {
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [contactDraft, setContactDraft] = useState(defaultContextDraft("contact"));
+  const [conversationDraft, setConversationDraft] = useState(defaultContextDraft("conversation"));
+  const [hiddenSuggestions, setHiddenSuggestions] = useState<Set<string>>(new Set());
+
+  async function saveContext(scope: "contact" | "conversation", draft: ContextRecordView) {
+    setActionError(null);
+
+    try {
+      const response = await fetchWithTimeout("/api/context", {
+        body: JSON.stringify({ ...draft, scope }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not save context");
+      }
+
+      if (scope === "contact") {
+        setContactDraft(defaultContextDraft("contact"));
+      } else {
+        setConversationDraft(defaultContextDraft("conversation"));
+      }
+
+      await onRefresh();
+    } catch (saveError) {
+      setActionError(saveError instanceof Error ? saveError.message : "Could not save context");
+    }
+  }
+
+  function toggleDetail(
+    draft: ContextRecordView,
+    setDraft: (draft: ContextRecordView) => void,
+    detail: string,
+  ) {
+    const current = new Set(draft.allowedPersonalDetails);
+
+    if (current.has(detail)) {
+      current.delete(detail);
+    } else {
+      current.add(detail);
+    }
+
+    setDraft({ ...draft, allowedPersonalDetails: [...current] });
+  }
+
+  function applySuggestion(suggestion: ContextSuggestionView) {
+    const targetKey = suggestion.targetKey.replace(/^imessage:/, "");
+    const next = {
+      ...defaultContextDraft(suggestion.contextType),
+      allowedPersonalDetails: suggestion.payload.allowedPersonalDetails,
+      customPrompt: suggestion.payload.customPrompt,
+      displayName: suggestion.payload.displayName,
+      relationship: suggestion.payload.relationship,
+      replyPosture: suggestion.payload.replyPosture,
+      tone: suggestion.payload.tone,
+    };
+
+    if (suggestion.contextType === "contact") {
+      setContactDraft({ ...next, contactKey: suggestion.targetKey });
+    } else {
+      setConversationDraft({ ...next, channelId: "imessage", roomKey: targetKey });
+    }
+  }
+
+  const suggestions =
+    data?.suggestions.filter((suggestion) => !hiddenSuggestions.has(suggestion.targetKey)) ?? [];
+
+  return (
+    <section className="content-band context-layout" aria-labelledby="context-heading">
+      <div className="section-heading">
+        <h2 id="context-heading">Context</h2>
+        <button
+          className="ghost-button icon-button"
+          disabled={loading}
+          onClick={() => void onRefresh()}
+          title="Refresh context"
+          type="button"
+        >
+          <RefreshCw aria-label="Refresh context" size={16} />
+        </button>
+      </div>
+      {actionError ? <p className="draft-action-error">{actionError}</p> : null}
+      {error ? (
+        <EmptyState
+          action={
+            <button className="action-button" onClick={() => void onRefresh()} type="button">
+              <RefreshCw aria-hidden size={17} />
+              Retry
+            </button>
+          }
+          icon={<Tag aria-hidden size={24} />}
+          message={error}
+          title="Could not load context"
+        />
+      ) : null}
+      {loading ? (
+        <EmptyState
+          icon={<Tag aria-hidden size={24} />}
+          message="Loading saved profiles and harvest suggestions."
+          title="Loading context"
+        />
+      ) : null}
+      {!error && !loading ? (
+        <>
+          <div className="context-editor-grid">
+            <ContextEditor
+              canEditContext={canEditContext}
+              draft={contactDraft}
+              keyField="contactKey"
+              keyLabel="Contact key"
+              onChange={setContactDraft}
+              onSave={() => void saveContext("contact", contactDraft)}
+              onToggleDetail={(detail) => toggleDetail(contactDraft, setContactDraft, detail)}
+              title="Contact Context"
+            />
+            <ContextEditor
+              canEditContext={canEditContext}
+              draft={conversationDraft}
+              keyField="roomKey"
+              keyLabel="Room key"
+              onChange={setConversationDraft}
+              onSave={() => void saveContext("conversation", conversationDraft)}
+              onToggleDetail={(detail) =>
+                toggleDetail(conversationDraft, setConversationDraft, detail)
+              }
+              title="Conversation Context"
+            />
+          </div>
+          <div className="context-columns">
+            <ContextList
+              records={data?.contactContexts ?? []}
+              title="Saved Contacts"
+              onEdit={(record) => setContactDraft(record)}
+            />
+            <ContextList
+              records={data?.conversationContexts ?? []}
+              title="Saved Rooms"
+              onEdit={(record) => setConversationDraft(record)}
+            />
+          </div>
+          <section className="context-suggestions" aria-labelledby="context-suggestions-heading">
+            <div className="section-heading">
+              <h3 id="context-suggestions-heading">Harvest Suggestions</h3>
+              {data?.harvestError ? <span>{data.harvestError}</span> : null}
+            </div>
+            {suggestions.length === 0 ? (
+              <p className="muted-line">No harvest suggestions are visible right now.</p>
+            ) : (
+              <div className="draft-grid">
+                {suggestions.slice(0, 8).map((suggestion) => (
+                  <article className="context-suggestion-card" key={suggestion.targetKey}>
+                    <div className="draft-card-top">
+                      <span>
+                        <strong>{suggestion.payload.displayName}</strong>
+                        <span>
+                          {suggestion.contextType} · confidence{" "}
+                          {Math.round(suggestion.confidence * 100)}%
+                        </span>
+                      </span>
+                      <StatusBadge tone="waiting">review</StatusBadge>
+                    </div>
+                    <dl className="draft-meta">
+                      <div>
+                        <dt>Relationship</dt>
+                        <dd>{suggestion.payload.relationship}</dd>
+                      </div>
+                      <div>
+                        <dt>Tone</dt>
+                        <dd>{suggestion.payload.tone}</dd>
+                      </div>
+                      <div>
+                        <dt>Posture</dt>
+                        <dd>{suggestion.payload.replyPosture}</dd>
+                      </div>
+                    </dl>
+                    <ul className="context-evidence">
+                      {suggestion.evidence.map((evidence) => (
+                        <li key={evidence.rowid}>
+                          <strong>{evidence.rowid}</strong>
+                          <span>{evidence.snippet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="draft-actions">
+                      <button
+                        className="action-button"
+                        disabled={!canEditContext}
+                        onClick={() => applySuggestion(suggestion)}
+                        type="button"
+                      >
+                        Edit suggestion
+                      </button>
+                      <button
+                        className="ghost-button"
+                        onClick={() =>
+                          setHiddenSuggestions((current) =>
+                            new Set(current).add(suggestion.targetKey),
+                          )
+                        }
+                        type="button"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function ContextEditor({
+  canEditContext,
+  draft,
+  keyField,
+  keyLabel,
+  onChange,
+  onSave,
+  onToggleDetail,
+  title,
+}: {
+  canEditContext: boolean;
+  draft: ContextRecordView;
+  keyField: "contactKey" | "roomKey";
+  keyLabel: string;
+  onChange: (draft: ContextRecordView) => void;
+  onSave: () => void;
+  onToggleDetail: (detail: string) => void;
+  title: string;
+}) {
+  return (
+    <section className="context-editor" aria-label={title}>
+      <h3>{title}</h3>
+      <label>
+        <span>{keyLabel}</span>
+        <input
+          onChange={(event) => onChange({ ...draft, [keyField]: event.target.value })}
+          value={draft[keyField] ?? ""}
+        />
+      </label>
+      <label>
+        <span>Display name</span>
+        <input
+          onChange={(event) => onChange({ ...draft, displayName: event.target.value })}
+          value={draft.displayName}
+        />
+      </label>
+      <div className="context-choice-row">
+        <label>
+          <span>Relationship</span>
+          <select
+            onChange={(event) => onChange({ ...draft, relationship: event.target.value })}
+            value={draft.relationship}
+          >
+            {contextRelationships.map((choice) => (
+              <option key={choice}>{choice}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Tone</span>
+          <select
+            onChange={(event) => onChange({ ...draft, tone: event.target.value })}
+            value={draft.tone}
+          >
+            {contextTones.map((choice) => (
+              <option key={choice}>{choice}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Reply posture</span>
+          <select
+            onChange={(event) => onChange({ ...draft, replyPosture: event.target.value })}
+            value={draft.replyPosture}
+          >
+            {contextReplyPostures.map((choice) => (
+              <option key={choice}>{choice}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <fieldset className="context-detail-options">
+        <legend>Allowed details</legend>
+        {personalDetailChoices.map((detail) => (
+          <label key={detail}>
+            <input
+              checked={draft.allowedPersonalDetails.includes(detail)}
+              onChange={() => onToggleDetail(detail)}
+              type="checkbox"
+            />
+            <span>{detail}</span>
+          </label>
+        ))}
+      </fieldset>
+      <label>
+        <span>Custom prompt</span>
+        <textarea
+          onChange={(event) => onChange({ ...draft, customPrompt: event.target.value })}
+          rows={3}
+          value={draft.customPrompt}
+        />
+      </label>
+      <label>
+        <span>Notes</span>
+        <textarea
+          onChange={(event) => onChange({ ...draft, notes: event.target.value })}
+          rows={3}
+          value={draft.notes}
+        />
+      </label>
+      <button className="action-button" disabled={!canEditContext} onClick={onSave} type="button">
+        Save
+      </button>
+    </section>
+  );
+}
+
+function ContextList({
+  onEdit,
+  records,
+  title,
+}: {
+  onEdit: (record: ContextRecordView) => void;
+  records: ContextRecordView[];
+  title: string;
+}) {
+  return (
+    <section className="context-list" aria-label={title}>
+      <h3>{title}</h3>
+      {records.length === 0 ? <p className="muted-line">No saved records yet.</p> : null}
+      {records.map((record) => (
+        <button
+          className="context-list-item"
+          key={record.id}
+          onClick={() => onEdit(record)}
+          type="button"
+        >
+          <strong>{record.displayName || record.contactKey || record.roomKey}</strong>
+          <span>
+            {record.relationship} · {record.tone} · {record.replyPosture}
+          </span>
+        </button>
+      ))}
     </section>
   );
 }
