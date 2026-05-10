@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+export { listImessageContactConversationCounts } from "./contacts.js";
 export { listImessageConversations } from "./conversations.js";
 export {
   approveImessageDraft,
