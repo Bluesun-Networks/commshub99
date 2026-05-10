@@ -22,6 +22,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ uui
     writeAuditLog({
       action: "draft.approve",
       payload: {
+        alreadyCompleted: result.alreadyCompleted ?? false,
+        outboxPath: result.outboxPath,
         path: result.draftPath,
       },
       targetId: uuid,

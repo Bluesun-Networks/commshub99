@@ -12,7 +12,9 @@ import {
 } from "./paths.js";
 
 export interface DraftActionResult {
+  alreadyCompleted?: boolean;
   draftPath: string;
+  outboxPath?: string;
   rejectedPath?: string;
   rulesReviewStatus?: "not_requested" | "pending_llm_review";
   uuid: string;
@@ -200,14 +202,31 @@ export async function updateImessageDraft(uuid: string, text: string): Promise<D
 }
 
 export async function approveImessageDraft(uuid: string): Promise<DraftActionResult> {
-  const draftPath = requireDraftPath(await findDraftPath(resolveImessageChatsPath(), uuid));
-  const content = await readFile(draftPath, "utf8");
+  const outboxPath = outboxPathFor(uuid);
+  const draftPath = await findDraftPath(resolveImessageChatsPath(), uuid);
 
-  await atomicWrite(outboxPathFor(uuid), writeOutboxContent(content));
-  await unlink(draftPath);
+  if (existsSync(outboxPath)) {
+    if (draftPath) {
+      await unlink(requireDraftPath(draftPath));
+    }
+
+    return {
+      alreadyCompleted: true,
+      draftPath: draftPath ?? "",
+      outboxPath,
+      uuid,
+    };
+  }
+
+  const requiredDraftPath = requireDraftPath(draftPath);
+  const content = await readFile(requiredDraftPath, "utf8");
+
+  await atomicWrite(outboxPath, writeOutboxContent(content));
+  await unlink(requiredDraftPath);
 
   return {
-    draftPath,
+    draftPath: requiredDraftPath,
+    outboxPath,
     uuid,
   };
 }
@@ -216,16 +235,35 @@ export async function rejectImessageDraft(
   uuid: string,
   futureNote: string,
 ): Promise<DraftActionResult> {
-  const draftPath = requireDraftPath(await findDraftPath(resolveImessageChatsPath(), uuid));
+  const draftPath = await findDraftPath(resolveImessageChatsPath(), uuid);
   const rejectedPath = rejectedPathFor(uuid);
   const rulesReviewStatus = futureNote ? "pending_llm_review" : "not_requested";
 
+  if (existsSync(rejectedPath)) {
+    if (draftPath) {
+      await unlink(requireDraftPath(draftPath));
+    }
+
+    return {
+      alreadyCompleted: true,
+      draftPath: draftPath ?? "",
+      rejectedPath,
+      rulesReviewStatus,
+      uuid,
+    };
+  }
+
+  const requiredDraftPath = requireDraftPath(draftPath);
+
   await mkdir(join(resolveImessageDataPath(), "rejected"), { recursive: true });
-  await atomicWrite(draftPath, addRejectMetadata(await readFile(draftPath, "utf8"), futureNote));
-  await rename(draftPath, rejectedPath);
+  await atomicWrite(
+    requiredDraftPath,
+    addRejectMetadata(await readFile(requiredDraftPath, "utf8"), futureNote),
+  );
+  await rename(requiredDraftPath, rejectedPath);
 
   return {
-    draftPath,
+    draftPath: requiredDraftPath,
     rejectedPath,
     rulesReviewStatus,
     uuid,

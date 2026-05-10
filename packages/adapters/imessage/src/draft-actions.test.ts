@@ -32,6 +32,14 @@ function draftPath(uuid = "draft-1") {
   return join(tempDir, "chats", "7", "drafts", `${uuid}.md`);
 }
 
+function outboxPath(uuid = "draft-1") {
+  return join(tempDir, "outbox", `${uuid}.md`);
+}
+
+function rejectedPath(uuid = "draft-1") {
+  return join(tempDir, "rejected", `${uuid}.md`);
+}
+
 function writeDraft(uuid = "draft-1", extraMeta = "") {
   writeFileSync(
     draftPath(uuid),
@@ -64,26 +72,68 @@ describe("iMessage draft actions", () => {
   it("approves by writing an outbox item and removing the draft", async () => {
     writeDraft();
 
-    await approveImessageDraft("draft-1");
-
-    const outboxPath = join(tempDir, "outbox", "draft-1.md");
+    const result = await approveImessageDraft("draft-1");
 
     expect(existsSync(draftPath())).toBe(false);
-    expect(readFileSync(outboxPath, "utf8")).toContain('service: "imessage"');
-    expect(readFileSync(outboxPath, "utf8")).toContain('source_draft_uuid: "draft-1"');
+    expect(result.outboxPath).toBe(outboxPath());
+    expect(readFileSync(outboxPath(), "utf8")).toContain('service: "imessage"');
+    expect(readFileSync(outboxPath(), "utf8")).toContain('source_draft_uuid: "draft-1"');
+  });
+
+  it("treats approve retry as complete when the outbox item already exists", async () => {
+    writeDraft();
+    await mkdir(join(tempDir, "outbox"), { recursive: true });
+    writeFileSync(outboxPath(), "already queued", "utf8");
+
+    const result = await approveImessageDraft("draft-1");
+
+    expect(result.alreadyCompleted).toBe(true);
+    expect(existsSync(draftPath())).toBe(false);
+    expect(readFileSync(outboxPath(), "utf8")).toBe("already queued");
+  });
+
+  it("does not remove malformed drafts during approve", async () => {
+    writeFileSync(draftPath(), "no frontmatter here", "utf8");
+
+    await expect(approveImessageDraft("draft-1")).rejects.toThrow("required send fields");
+
+    expect(existsSync(draftPath())).toBe(true);
+    expect(existsSync(outboxPath())).toBe(false);
   });
 
   it("rejects by moving the draft with rules review metadata", async () => {
     writeDraft();
 
     const result = await rejectImessageDraft("draft-1", "Avoid this next time.");
-    const rejectedPath = join(tempDir, "rejected", "draft-1.md");
-    const rejected = readFileSync(rejectedPath, "utf8");
+    const rejected = readFileSync(rejectedPath(), "utf8");
 
     expect(result.rulesReviewStatus).toBe("pending_llm_review");
+    expect(result.rejectedPath).toBe(rejectedPath());
     expect(existsSync(draftPath())).toBe(false);
     expect(rejected).toContain("rejected: true");
     expect(rejected).toContain('rules_review_status: "pending_llm_review"');
     expect(rejected).toContain('future_rules_note: "Avoid this next time."');
+  });
+
+  it("treats reject retry as complete when the rejected item already exists", async () => {
+    writeDraft();
+    await mkdir(join(tempDir, "rejected"), { recursive: true });
+    writeFileSync(rejectedPath(), "already rejected", "utf8");
+
+    const result = await rejectImessageDraft("draft-1", "");
+
+    expect(result.alreadyCompleted).toBe(true);
+    expect(result.rulesReviewStatus).toBe("not_requested");
+    expect(existsSync(draftPath())).toBe(false);
+    expect(readFileSync(rejectedPath(), "utf8")).toBe("already rejected");
+  });
+
+  it("does not move malformed drafts during reject", async () => {
+    writeFileSync(draftPath(), "no frontmatter here", "utf8");
+
+    await expect(rejectImessageDraft("draft-1", "")).rejects.toThrow("frontmatter");
+
+    expect(existsSync(draftPath())).toBe(true);
+    expect(existsSync(rejectedPath())).toBe(false);
   });
 });

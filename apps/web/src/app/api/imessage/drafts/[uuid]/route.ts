@@ -75,6 +75,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ u
     writeAuditLog({
       action: "draft.reject",
       payload: {
+        alreadyCompleted: result.alreadyCompleted ?? false,
         futureNoteLength: futureNote.length,
         path: result.draftPath,
         rejectedPath: result.rejectedPath,
