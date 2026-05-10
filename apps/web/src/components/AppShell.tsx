@@ -68,6 +68,7 @@ type Contact = {
   updatedAt: string;
 };
 type ReviewWindowId = "day" | "48h" | "week" | "month" | "year";
+const holdConfirmMs = 1200;
 
 const readinessRows = [
   { area: "Workspace", owner: "core", state: "Ready", tone: "ready" },
@@ -122,6 +123,76 @@ const reviewWindows = [
 
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
   return <span className={`status status-${tone}`}>{children}</span>;
+}
+
+function HoldConfirmButton({
+  children,
+  className,
+  confirmingLabel,
+  disabled,
+  onConfirm,
+  title,
+}: {
+  children: ReactNode;
+  className: string;
+  confirmingLabel: string;
+  disabled?: boolean;
+  onConfirm: () => void;
+  title: string;
+}) {
+  const [holding, setHolding] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHold = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    setHolding(false);
+  }, []);
+
+  const beginHold = useCallback(() => {
+    if (disabled || timerRef.current) {
+      return;
+    }
+
+    setHolding(true);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      setHolding(false);
+      onConfirm();
+    }, holdConfirmMs);
+  }, [disabled, onConfirm]);
+
+  useEffect(() => clearHold, [clearHold]);
+
+  return (
+    <button
+      aria-busy={holding}
+      className={`${className} hold-confirm${holding ? " is-holding" : ""}`}
+      disabled={disabled}
+      onKeyDown={(event) => {
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          beginHold();
+        }
+      }}
+      onKeyUp={(event) => {
+        if (event.key === " " || event.key === "Enter") {
+          clearHold();
+        }
+      }}
+      onPointerCancel={clearHold}
+      onPointerDown={beginHold}
+      onPointerLeave={clearHold}
+      onPointerUp={clearHold}
+      title={title}
+      type="button"
+    >
+      <span>{holding ? confirmingLabel : children}</span>
+    </button>
+  );
 }
 
 function EmptyState({
@@ -2204,17 +2275,17 @@ function Approvals({
                 <div className="draft-actions">
                   {isRejecting ? (
                     <>
-                      <button
+                      <HoldConfirmButton
                         className="action-button"
                         disabled={
                           !canMutateDrafts || busyUuid === draft.uuid || !rejectFutureNote.trim()
                         }
-                        onClick={() => void rejectDraft(draft.uuid)}
+                        confirmingLabel="Keep holding..."
+                        onConfirm={() => void rejectDraft(draft.uuid)}
                         title="Reject and queue the note for rules review"
-                        type="button"
                       >
-                        Reject draft
-                      </button>
+                        Hold to reject
+                      </HoldConfirmButton>
                       <button
                         className="ghost-button"
                         disabled={busyUuid === draft.uuid}
@@ -2252,19 +2323,19 @@ function Approvals({
                     </>
                   ) : (
                     <>
-                      <button
+                      <HoldConfirmButton
                         className="action-button"
                         disabled={!canMutateDrafts || busyUuid === draft.uuid}
-                        onClick={() => void approveDraft(draft.uuid)}
+                        confirmingLabel="Keep holding..."
+                        onConfirm={() => void approveDraft(draft.uuid)}
                         title={
                           canMutateDrafts
-                            ? "Mark approved for imsg-agent"
+                            ? "Hold to mark approved for imsg-agent"
                             : "Only admins can approve drafts"
                         }
-                        type="button"
                       >
-                        Approve
-                      </button>
+                        Hold to approve
+                      </HoldConfirmButton>
                       <button
                         className="ghost-button"
                         disabled={!canMutateDrafts || busyUuid === draft.uuid}

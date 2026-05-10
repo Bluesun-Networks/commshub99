@@ -393,6 +393,37 @@ tr:last-child td {
   color: var(--muted);
 }
 
+.hold-confirm {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hold-confirm::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #0b5f58;
+  content: "";
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.hold-confirm.is-holding::before {
+  animation: hold-confirm-fill 1.2s linear forwards;
+}
+
+.hold-confirm > span {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes hold-confirm-fill {
+  to {
+    transform: scaleX(1);
+  }
+}
+
 .auth-page {
   min-height: 100vh;
   display: grid;
