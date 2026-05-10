@@ -1,5 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+export {
+  AdapterRegistry,
+  type ChannelAdapter,
+  channelIdFromResourceId,
+  type DraftApprovalResult,
+  type ListConversationsOptions,
+  type ListMessagesOptions,
+  type ListProposedMessagesOptions,
+} from "./registry.js";
 export { type WriteAuditLogInput, writeAuditLog } from "./services/audit.js";
+export { ConversationService } from "./services/conversation.js";
+export { DraftService } from "./services/draft.js";
+export { MessageService } from "./services/message.js";
 export {
   type Attachment,
   attachmentSchema,
