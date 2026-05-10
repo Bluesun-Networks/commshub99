@@ -4,7 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "admin": "node --import tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "bun run --filter @commshub99/db build && bun run --filter @commshub99/auth build && tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@commshub99/auth": "workspace:*",
+    "@commshub99/db": "workspace:*",
+    "better-sqlite3": "^12.9.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.6.0"
   }
 }

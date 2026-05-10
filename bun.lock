@@ -16,6 +16,15 @@
     "apps/cli": {
       "name": "@commshub99/cli",
       "version": "0.0.1",
+      "dependencies": {
+        "@commshub99/auth": "workspace:*",
+        "@commshub99/db": "workspace:*",
+        "better-sqlite3": "^12.9.0",
+      },
+      "devDependencies": {
+        "@types/better-sqlite3": "^7.6.13",
+        "@types/node": "^25.6.0",
+      },
     },
     "apps/mcp": {
       "name": "@commshub99/mcp",

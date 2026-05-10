@@ -29,8 +29,45 @@ export interface SignInInput {
   userAgent?: string | null;
 }
 
+export interface LocalAdminUserInput {
+  email: string;
+  name?: string;
+  password: string;
+  role?: User["role"];
+}
+
+export interface LocalAdminPasswordResetInput {
+  email: string;
+  password: string;
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function assertValidPassword(password: string) {
+  if (password.trim().length < 12) {
+    throw new Error("Use a password with at least 12 characters.");
+  }
+}
+
+function defaultTenant(client: DbClient, ownerUserId: string) {
+  const existing = client.db.select().from(tenants).get();
+
+  if (existing) {
+    return existing;
+  }
+
+  const tenant = {
+    createdAt: new Date(),
+    id: randomUUID(),
+    name: "Home",
+    ownerUserId,
+  };
+
+  client.db.insert(tenants).values(tenant).run();
+
+  return tenant;
 }
 
 function sessionExpiry() {
@@ -175,9 +212,7 @@ export function bootstrapAdmin(input: BootstrapAdminInput): AuthSession {
     throw new Error("Enter a valid email address.");
   }
 
-  if (password.length < 12) {
-    throw new Error("Use a password with at least 12 characters.");
-  }
+  assertValidPassword(password);
 
   const client = createDbClient();
 
@@ -306,6 +341,187 @@ export function destroySession(token: string | undefined | null) {
   try {
     ensureAuthTables(client);
     client.db.delete(sessions).where(eq(sessions.token, token)).run();
+  } finally {
+    client.close();
+  }
+}
+
+export function listLocalAdminUsers() {
+  const client = createDbClient();
+
+  try {
+    ensureAuthTables(client);
+
+    return client.db
+      .select({
+        createdAt: users.createdAt,
+        disabled: users.disabled,
+        email: users.email,
+        id: users.id,
+        lastLoginAt: users.lastLoginAt,
+        name: users.name,
+        role: users.role,
+      })
+      .from(users)
+      .all();
+  } finally {
+    client.close();
+  }
+}
+
+export function createLocalAdminUser(input: LocalAdminUserInput) {
+  const email = normalizeEmail(input.email);
+  const password = input.password.trim();
+  const role = input.role ?? "readonly";
+
+  if (!email.includes("@")) {
+    throw new Error("Enter a valid email address.");
+  }
+
+  assertValidPassword(password);
+
+  const client = createDbClient();
+
+  try {
+    ensureAuthTables(client);
+
+    const existing = client.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .get();
+
+    if (existing) {
+      throw new Error(`User already exists: ${email}`);
+    }
+
+    const now = new Date();
+    const user = {
+      createdAt: now,
+      disabled: false,
+      email,
+      id: randomUUID(),
+      lastLoginAt: null,
+      name: input.name?.trim() || email,
+      passwordHash: hashPassword(password),
+      role,
+    };
+
+    client.db.insert(users).values(user).run();
+
+    const tenant = defaultTenant(client, user.id);
+    client.db
+      .insert(tenantUsers)
+      .values({
+        createdAt: now,
+        role,
+        tenantId: tenant.id,
+        userId: user.id,
+      })
+      .run();
+
+    return toPublicUser(user);
+  } finally {
+    client.close();
+  }
+}
+
+export function resetLocalAdminPassword(input: LocalAdminPasswordResetInput) {
+  const email = normalizeEmail(input.email);
+  const password = input.password.trim();
+
+  assertValidPassword(password);
+
+  const client = createDbClient();
+
+  try {
+    ensureAuthTables(client);
+
+    const user = client.db.select().from(users).where(eq(users.email, email)).get();
+
+    if (!user) {
+      throw new Error(`No user found for ${email}`);
+    }
+
+    client.db
+      .update(users)
+      .set({
+        disabled: false,
+        passwordHash: hashPassword(password),
+      })
+      .where(eq(users.id, user.id))
+      .run();
+    client.db.delete(sessions).where(eq(sessions.userId, user.id)).run();
+
+    return toPublicUser({ ...user, disabled: false, passwordHash: "" });
+  } finally {
+    client.close();
+  }
+}
+
+export function setLocalAdminUserRole(emailInput: string, role: User["role"]) {
+  const email = normalizeEmail(emailInput);
+  const client = createDbClient();
+
+  try {
+    ensureAuthTables(client);
+
+    const user = client.db.select().from(users).where(eq(users.email, email)).get();
+
+    if (!user) {
+      throw new Error(`No user found for ${email}`);
+    }
+
+    client.db.update(users).set({ role }).where(eq(users.id, user.id)).run();
+    client.db.update(tenantUsers).set({ role }).where(eq(tenantUsers.userId, user.id)).run();
+
+    return toPublicUser({ ...user, role });
+  } finally {
+    client.close();
+  }
+}
+
+export function setLocalAdminUserDisabled(emailInput: string, disabled: boolean) {
+  const email = normalizeEmail(emailInput);
+  const client = createDbClient();
+
+  try {
+    ensureAuthTables(client);
+
+    const user = client.db.select().from(users).where(eq(users.email, email)).get();
+
+    if (!user) {
+      throw new Error(`No user found for ${email}`);
+    }
+
+    client.db.update(users).set({ disabled }).where(eq(users.id, user.id)).run();
+
+    if (disabled) {
+      client.db.delete(sessions).where(eq(sessions.userId, user.id)).run();
+    }
+
+    return toPublicUser({ ...user, disabled });
+  } finally {
+    client.close();
+  }
+}
+
+export function clearLocalAdminUserSessions(emailInput: string) {
+  const email = normalizeEmail(emailInput);
+  const client = createDbClient();
+
+  try {
+    ensureAuthTables(client);
+
+    const user = client.db.select().from(users).where(eq(users.email, email)).get();
+
+    if (!user) {
+      throw new Error(`No user found for ${email}`);
+    }
+
+    client.db.delete(sessions).where(eq(sessions.userId, user.id)).run();
+
+    return toPublicUser(user);
   } finally {
     client.close();
   }
