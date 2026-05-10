@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "next build",
+    "build": "bun run build:deps && next build",
+    "build:deps": "bun run --filter @commshub99/db build && bun run --filter @commshub99/auth build && bun run --filter @commshub99/core build && bun run --filter @commshub99/mcp-client build && bun run --filter @commshub99/adapter-imessage build",
     "dev": "next dev",
     "start": "next start",
-    "typecheck": "bun run --filter @commshub99/db build && bun run --filter @commshub99/auth build && bun run --filter @commshub99/mcp-client build && tsc -p tsconfig.json --noEmit"
+    "upgrade": "cd ../.. && bun run upgrade",
+    "typecheck": "bun run build:deps && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@commshub99/adapter-imessage": "workspace:*",
