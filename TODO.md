@@ -56,7 +56,7 @@ This section reflects the current codebase state after the first local web/admin
 
 ### Scheduling
 
-- [ ] **Add scheduled sends schema and migration.** Files: `packages/db/src/schema/schedule.ts`, migrations. Include tenant, draft ref, send time, status, attempts, last error, requester, timestamps. Acceptance: migration applies on a fresh DB. **(sonnet)**
+- [x] **Add scheduled sends schema and migration.** Files: `packages/db/src/schema/schedule.ts`, migrations. Include tenant, draft ref, send time, status, attempts, last error, requester, timestamps. Acceptance: migration applies on a fresh DB. **(sonnet)**
 - [ ] **Implement schedule service and worker.** Files: `packages/core/src/workers/schedule.ts`, `packages/core/src/services/schedule.ts`. Poll due sends, run approve flow, retry with backoff, and mark terminal failures. Acceptance: tests cover due, future, retry, cancel, and failed states. **(opus)**
 - [ ] **Add schedule UI.** Files: `apps/web/src/components/Schedule*.tsx`, approvals view. User can schedule, view, cancel, and reschedule sends with correct local timezone display. Acceptance: scheduled drafts are not sent until due. **(sonnet)**
 

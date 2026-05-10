@@ -15,6 +15,13 @@
       "when": 1777858219692,
       "tag": "0001_heavy_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1778447448907,
+      "tag": "0002_faulty_rocket_racer",
+      "breakpoints": true
     }
   ]
 }
