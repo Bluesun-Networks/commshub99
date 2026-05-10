@@ -53,6 +53,16 @@ beforeEach(() => {
         created_at integer NOT NULL,
         updated_at integer NOT NULL
       );
+      CREATE TABLE audit_log (
+        id text PRIMARY KEY NOT NULL,
+        tenant_id text NOT NULL,
+        user_id text,
+        action text NOT NULL,
+        target_type text NOT NULL,
+        target_id text NOT NULL,
+        payload_json text NOT NULL,
+        created_at integer NOT NULL
+      );
       INSERT INTO users (id, email, name, password_hash, role, created_at, disabled)
         VALUES ('user-1', 'admin@example.com', 'Admin', 'hash', 'admin', 1, 0);
       INSERT INTO tenants (id, name, owner_user_id, created_at)
@@ -89,7 +99,68 @@ function createDue(service: ScheduleService, id = "schedule-1") {
   });
 }
 
+function auditRows() {
+  const client = createDbClient();
+
+  try {
+    return client.sqlite.prepare("SELECT * FROM audit_log ORDER BY rowid ASC").all() as Array<{
+      action: string;
+      payload_json: string;
+      target_id: string;
+      target_type: string;
+      tenant_id: string;
+      user_id: string | null;
+    }>;
+  } finally {
+    client.close();
+  }
+}
+
 describe("ScheduleService", () => {
+  it("audits scheduled draft creation", () => {
+    const service = new ScheduleService();
+
+    createDue(service);
+
+    expect(auditRows()).toMatchObject([
+      {
+        action: "draft.schedule",
+        target_id: "imessage:draft:schedule-1",
+        target_type: "imessage_draft",
+        tenant_id: "tenant-1",
+        user_id: "user-1",
+      },
+    ]);
+    expect(JSON.parse(auditRows()[0]?.payload_json ?? "{}")).toMatchObject({
+      channelId: "imessage",
+      scheduleId: "schedule-1",
+      sendAt: "2026-05-10T20:00:00.000Z",
+    });
+  });
+
+  it("audits scheduled draft cancellation", () => {
+    const service = new ScheduleService();
+
+    createDue(service);
+    service.cancel("schedule-1");
+
+    expect(auditRows()).toMatchObject([
+      {
+        action: "draft.schedule",
+      },
+      {
+        action: "draft.schedule.cancel",
+        target_id: "imessage:draft:schedule-1",
+        target_type: "imessage_draft",
+        tenant_id: "tenant-1",
+        user_id: "user-1",
+      },
+    ]);
+    expect(JSON.parse(auditRows()[1]?.payload_json ?? "{}")).toEqual({
+      scheduleId: "schedule-1",
+    });
+  });
+
   it("finds due sends but excludes future and cancelled sends", () => {
     const service = new ScheduleService();
 

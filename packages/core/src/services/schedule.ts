@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { createDbClient } from "@commshub99/db";
 import type { ChannelId } from "../types.js";
+import { tryWriteDraftMutationAudit } from "./audit.js";
 
 export type ScheduledSendStatus = "pending" | "sending" | "sent" | "cancelled" | "failed";
 
@@ -81,7 +82,21 @@ export class ScheduleService {
           now.getTime(),
         );
 
-      return this.get(id);
+      const scheduled = this.get(id);
+
+      tryWriteDraftMutationAudit({
+        action: "draft.schedule",
+        draftId: input.draftId,
+        payload: {
+          channelId: input.channelId,
+          scheduleId: id,
+          sendAt: input.sendAt.toISOString(),
+        },
+        tenantId: input.tenantId,
+        userId: input.requestedByUserId ?? null,
+      });
+
+      return scheduled;
     } finally {
       client.close();
     }
@@ -123,8 +138,24 @@ export class ScheduleService {
   }
 
   cancel(id: string) {
+    const existing = this.get(id);
+
     this.updateStatus(id, "cancelled", null);
-    return this.get(id);
+    const cancelled = this.get(id);
+
+    if (existing) {
+      tryWriteDraftMutationAudit({
+        action: "draft.schedule.cancel",
+        draftId: existing.draftId,
+        payload: {
+          scheduleId: existing.id,
+        },
+        tenantId: existing.tenantId,
+        userId: existing.requestedByUserId,
+      });
+    }
+
+    return cancelled;
   }
 
   markSending(id: string) {

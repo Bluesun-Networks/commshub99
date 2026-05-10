@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { rejectImessageDraft, updateImessageDraft } from "@commshub99/adapter-imessage";
 import { NextResponse } from "next/server";
-import { writeRouteAuditLog } from "../../../_audit";
+import { writeRouteDraftMutationAudit } from "../../../_audit";
 import { requirePermissionRequest } from "../../../_auth";
 
 export const runtime = "nodejs";
@@ -33,14 +33,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ uu
   try {
     const result = await updateImessageDraft(uuid, text);
 
-    writeRouteAuditLog({
+    writeRouteDraftMutationAudit({
       action: "draft.edit",
+      draftId: uuid,
       payload: {
         path: result.draftPath,
         textLength: text.length,
       },
-      targetId: uuid,
-      targetType: "imessage_draft",
       userId: auth.session.user.id,
     });
 
@@ -72,8 +71,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ u
   try {
     const result = await rejectImessageDraft(uuid, futureNote);
 
-    writeRouteAuditLog({
+    writeRouteDraftMutationAudit({
       action: "draft.reject",
+      draftId: uuid,
       payload: {
         alreadyCompleted: result.alreadyCompleted ?? false,
         futureNoteLength: futureNote.length,
@@ -81,8 +81,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ u
         rejectedPath: result.rejectedPath,
         rulesReviewStatus: result.rulesReviewStatus,
       },
-      targetId: uuid,
-      targetType: "imessage_draft",
       userId: auth.session.user.id,
     });
 

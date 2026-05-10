@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDbClient } from "@commshub99/db";
 import { afterEach, describe, expect, it } from "vitest";
-import { tryWriteAuditLog, writeAuditLog } from "./audit.js";
+import { tryWriteAuditLog, writeAuditLog, writeDraftMutationAudit } from "./audit.js";
 
 const tempDirs: string[] = [];
 const originalDbPath = process.env.COMMSHUB99_DB_PATH;
@@ -99,6 +99,37 @@ describe("writeAuditLog", () => {
       expect(row.action).toBe("draft.approve");
       expect(row.target_id).toBe("draft-1");
       expect(JSON.parse(row.payload_json)).toEqual({ uuid: "draft-1" });
+    } finally {
+      client.close();
+    }
+  });
+
+  it("writes standardized rows for draft mutations", () => {
+    seedAuditDatabase();
+
+    writeDraftMutationAudit({
+      action: "draft.edit",
+      draftId: "draft-1",
+      payload: { textLength: 42 },
+      userId: "user-1",
+    });
+
+    const client = createDbClient();
+
+    try {
+      const row = client.sqlite.prepare("SELECT * FROM audit_log").get() as {
+        action: string;
+        payload_json: string;
+        target_id: string;
+        target_type: string;
+        user_id: string;
+      };
+
+      expect(row.action).toBe("draft.edit");
+      expect(row.target_id).toBe("draft-1");
+      expect(row.target_type).toBe("imessage_draft");
+      expect(row.user_id).toBe("user-1");
+      expect(JSON.parse(row.payload_json)).toEqual({ textLength: 42 });
     } finally {
       client.close();
     }

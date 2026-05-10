@@ -9,10 +9,14 @@ export {
   type ListProposedMessagesOptions,
 } from "./registry.js";
 export {
+  type DraftMutationAuditAction,
   type TryWriteAuditLogResult,
   tryWriteAuditLog,
+  tryWriteDraftMutationAudit,
   type WriteAuditLogInput,
+  type WriteDraftMutationAuditInput,
   writeAuditLog,
+  writeDraftMutationAudit,
 } from "./services/audit.js";
 export { ConversationService } from "./services/conversation.js";
 export { DraftService } from "./services/draft.js";

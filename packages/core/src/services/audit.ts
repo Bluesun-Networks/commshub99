@@ -23,6 +23,21 @@ export type TryWriteAuditLogResult =
       ok: false;
     };
 
+export type DraftMutationAuditAction =
+  | "draft.approve"
+  | "draft.edit"
+  | "draft.reject"
+  | "draft.schedule"
+  | "draft.schedule.cancel";
+
+export interface WriteDraftMutationAuditInput {
+  action: DraftMutationAuditAction;
+  draftId: string;
+  payload?: Record<string, unknown>;
+  tenantId?: string | null;
+  userId?: string | null;
+}
+
 function resolveTenantId(userId: string | null | undefined, explicitTenantId?: string | null) {
   if (explicitTenantId) {
     return explicitTenantId;
@@ -107,6 +122,33 @@ export function tryWriteAuditLog(input: WriteAuditLogInput): TryWriteAuditLogRes
   } catch (error) {
     return {
       error: error instanceof Error ? error : new Error("Could not write audit log"),
+      ok: false,
+    };
+  }
+}
+
+export function writeDraftMutationAudit(input: WriteDraftMutationAuditInput) {
+  return writeAuditLog({
+    action: input.action,
+    payload: input.payload ?? {},
+    targetId: input.draftId,
+    targetType: "imessage_draft",
+    tenantId: input.tenantId ?? null,
+    userId: input.userId ?? null,
+  });
+}
+
+export function tryWriteDraftMutationAudit(
+  input: WriteDraftMutationAuditInput,
+): TryWriteAuditLogResult {
+  try {
+    return {
+      ok: true,
+      ...writeDraftMutationAudit(input),
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error : new Error("Could not write draft audit log"),
       ok: false,
     };
   }
