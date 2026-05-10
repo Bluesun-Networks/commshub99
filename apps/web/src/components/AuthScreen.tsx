@@ -91,6 +91,15 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
             {submitting ? "Working..." : isBootstrap ? "Create admin" : "Sign in"}
           </button>
         </form>
+        {!isBootstrap ? (
+          <p className="auth-recovery">
+            Forgot the password? On this Mac, run{" "}
+            <code>
+              bun run --filter @commshub99/cli admin users:reset-password --email you@example.com
+            </code>
+            .
+          </p>
+        ) : null}
       </section>
     </main>
   );

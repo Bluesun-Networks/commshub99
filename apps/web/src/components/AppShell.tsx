@@ -101,6 +101,7 @@ type DraftProposal = {
   text: string;
   uuid: string;
 };
+type ReviewWindowId = "day" | "48h" | "week" | "month" | "year";
 
 const readinessRows = [
   { area: "Workspace", owner: "core", state: "Ready", tone: "ready" },
@@ -138,6 +139,20 @@ const navItems = [
   { icon: <UserPlus aria-hidden size={19} />, label: "People", view: "people" },
   { icon: <Settings aria-hidden size={19} />, label: "Settings", view: "settings" },
 ] satisfies Array<{ icon: ReactNode; label: string; view: View }>;
+
+const defaultReviewWindow = {
+  id: "day",
+  label: "Last day",
+  durationMs: 24 * 60 * 60 * 1000,
+} satisfies { durationMs: number; id: ReviewWindowId; label: string };
+
+const reviewWindows = [
+  defaultReviewWindow,
+  { id: "48h", label: "Last 48 hours", durationMs: 48 * 60 * 60 * 1000 },
+  { id: "week", label: "Last week", durationMs: 7 * 24 * 60 * 60 * 1000 },
+  { id: "month", label: "Last month", durationMs: 30 * 24 * 60 * 60 * 1000 },
+  { id: "year", label: "Last year", durationMs: 365 * 24 * 60 * 60 * 1000 },
+] satisfies Array<{ durationMs: number; id: ReviewWindowId; label: string }>;
 
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
   return <span className={`status status-${tone}`}>{children}</span>;
@@ -216,6 +231,10 @@ function ageLabel(value: string) {
   }
 
   return `${Math.floor(hours / 24)}d since source`;
+}
+
+function isInsideReviewWindow(time: number, now: number, durationMs: number) {
+  return time > 0 && now - time <= durationMs;
 }
 
 function categoryImportance(categories: string[]) {
@@ -1787,6 +1806,9 @@ function Approvals({
   const [filterQuery, setFilterQuery] = useState("");
   const [rejectingUuid, setRejectingUuid] = useState<string | null>(null);
   const [rejectFutureNote, setRejectFutureNote] = useState("");
+  const [reviewWindowId, setReviewWindowId] = useState<ReviewWindowId>("day");
+  const reviewWindow =
+    reviewWindows.find((windowOption) => windowOption.id === reviewWindowId) ?? defaultReviewWindow;
   const contactsByIdentifier = useMemo(() => {
     const matches = new Map<string, Contact>();
 
@@ -1923,15 +1945,14 @@ function Approvals({
     [draftRecipient],
   );
 
-  const visibleDrafts = useMemo(() => {
-    const query = filterQuery.trim().toLowerCase();
-
+  const draftItems = useMemo(() => {
     return drafts
       .map((draft) => {
         const recipient = draftRecipient(draft);
         const importance = importanceFor(draft);
         const sourceTime = parseDateMs(draft.sourceMessageAt);
         const createdTime = parseDateMs(draft.createdAt);
+        const reviewTime = sourceTime || createdTime;
         const searchable = [
           recipient.name,
           recipient.detail,
@@ -1953,11 +1974,11 @@ function Approvals({
           draft,
           importance,
           recipient,
+          reviewTime,
           searchable,
           sourceTime,
         };
       })
-      .filter((item) => !query || item.searchable.includes(query))
       .sort((left, right) => {
         const importanceDelta = right.importance - left.importance;
 
@@ -1974,7 +1995,21 @@ function Approvals({
 
         return right.createdTime - left.createdTime;
       });
-  }, [drafts, filterQuery, draftRecipient, importanceFor]);
+  }, [drafts, draftRecipient, importanceFor]);
+
+  const matchingDrafts = useMemo(() => {
+    const query = filterQuery.trim().toLowerCase();
+
+    return draftItems.filter((item) => !query || item.searchable.includes(query));
+  }, [draftItems, filterQuery]);
+  const visibleDrafts = useMemo(() => {
+    const now = Date.now();
+
+    return matchingDrafts.filter((item) =>
+      isInsideReviewWindow(item.reviewTime, now, reviewWindow.durationMs),
+    );
+  }, [matchingDrafts, reviewWindow.durationMs]);
+  const hiddenByWindowCount = matchingDrafts.length - visibleDrafts.length;
 
   return (
     <section className="content-band" aria-labelledby="approvals-heading">
@@ -1982,7 +2017,7 @@ function Approvals({
         <h2 id="approvals-heading">Pending Approvals</h2>
         <div className="detail-actions">
           <StatusBadge tone={drafts.length > 0 ? "waiting" : "ready"}>
-            {loading ? "Loading" : `${drafts.length} waiting`}
+            {loading ? "Loading" : `${visibleDrafts.length} current`}
           </StatusBadge>
           <button
             className="ghost-button icon-button"
@@ -2005,10 +2040,26 @@ function Approvals({
             value={filterQuery}
           />
         </label>
+        <fieldset className="review-window-picker">
+          <legend>Review window</legend>
+          <div>
+            {reviewWindows.map((windowOption) => (
+              <button
+                aria-pressed={reviewWindowId === windowOption.id}
+                key={windowOption.id}
+                onClick={() => setReviewWindowId(windowOption.id)}
+                type="button"
+              >
+                {windowOption.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <div className="approval-sort-note" aria-live="polite">
           <Filter aria-hidden size={16} />
           <span>
-            Sorted by person importance, then oldest reply context
+            Showing {reviewWindow.label.toLowerCase()}
+            {hiddenByWindowCount > 0 ? ` · ${hiddenByWindowCount} hidden as stale` : ""}
             {filterQuery ? ` · ${visibleDrafts.length} match` : ""}
           </span>
         </div>
@@ -2044,12 +2095,26 @@ function Approvals({
       {!error && !loading && drafts.length > 0 && visibleDrafts.length === 0 ? (
         <EmptyState
           action={
-            <button className="ghost-button" onClick={() => setFilterQuery("")} type="button">
-              Clear filter
+            <button
+              className="ghost-button"
+              onClick={() => {
+                if (filterQuery) {
+                  setFilterQuery("");
+                } else {
+                  setReviewWindowId(reviewWindowId === "day" ? "48h" : "year");
+                }
+              }}
+              type="button"
+            >
+              {filterQuery
+                ? "Clear filter"
+                : reviewWindowId === "day"
+                  ? "Show last 48 hours"
+                  : "Show last year"}
             </button>
           }
           icon={<Filter aria-hidden size={24} />}
-          message="No pending draft matches that person, message text, or date."
+          message="No pending draft matches the current person, text, date, and review window."
           title="No matching approvals"
         />
       ) : null}
