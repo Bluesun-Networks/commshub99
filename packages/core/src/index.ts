@@ -24,6 +24,12 @@ export {
   type ResolvedContextBundle,
 } from "./services/context.js";
 export {
+  type ContextHarvestSuggestion,
+  type HarvestConversationInput,
+  type HarvestMessage,
+  harvestContextSuggestions,
+} from "./services/context-harvest.js";
+export {
   ContextHistoryService,
   type ListContextVersionsInput,
   type RecordContextVersionInput,

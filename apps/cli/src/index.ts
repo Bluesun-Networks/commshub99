@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   approveImessageDraft,
+  harvestImessageContextSuggestions,
   listImessageDrafts,
   rejectImessageDraft,
   updateImessageDraft,
@@ -36,6 +37,7 @@ Usage:
   bun run --filter @commshub99/cli admin edit UUID --text TEXT
   bun run --filter @commshub99/cli admin reject UUID [--note NOTE]
   bun run --filter @commshub99/cli admin schedule UUID --at ISO_DATETIME
+  bun run --filter @commshub99/cli admin context:harvest [--limit N]
   bun run --filter @commshub99/cli admin tail
   bun run --filter @commshub99/cli admin users:list
   bun run --filter @commshub99/cli admin users:create --email EMAIL [--name NAME] [--role admin|readonly] [--password PASSWORD]
@@ -483,6 +485,23 @@ function schedulePendingDraft(uuid: string) {
   console.log(`Scheduled ${uuid} for ${scheduled?.sendAt.toISOString()}.`);
 }
 
+function printContextHarvestSuggestions() {
+  const limitValue = option("--limit");
+  const limit = limitValue ? Number(limitValue) : 25;
+
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error("--limit must be a positive integer.");
+  }
+
+  const result = harvestImessageContextSuggestions(limit);
+
+  if (result.error) {
+    throw new Error(result.error);
+  }
+
+  console.log(JSON.stringify(result.suggestions, null, 2));
+}
+
 function printTail() {
   const dataDir = resolveImsgDataDir();
   const latestSent = latestFile(join(dataDir, "sent"));
@@ -532,6 +551,10 @@ async function main() {
 
     case "schedule":
       schedulePendingDraft(requirePositional(3, "UUID"));
+      return;
+
+    case "context:harvest":
+      printContextHarvestSuggestions();
       return;
 
     case "tail":

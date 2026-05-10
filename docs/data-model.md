@@ -76,8 +76,6 @@ Important columns:
 
 Uniqueness: `(tenant_id, channel_id, room_key)`.
 
-## Future Layers
-
 ## Version History
 
 Every context mutation is recorded in `context_versions`.
@@ -98,8 +96,18 @@ Important columns:
 previous payload. Harvest/import suggestions should use `source` and `confidence` and remain
 reviewable rather than silently applying changes.
 
+## Harvest Suggestions
+
+The CLI can preview current iMessage harvest suggestions:
+
+```bash
+bun run --filter @commshub99/cli admin context:harvest --limit 25
+```
+
+This emits JSON suggestions with confidence and evidence snippets/row IDs. It does not write or
+apply context.
+
 ## Future Layers
 
-The next context work should add a resolution service that emits a deterministic context bundle for
-a draft. Historical chat harvest suggestions should write proposed context entries with source
-evidence and review status, never silently applying them.
+The next context work should persist harvested suggestions for web review, then pass approved
+resolved context bundles to draft generation and approval safeguards.
