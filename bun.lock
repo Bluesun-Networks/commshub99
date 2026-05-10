@@ -34,6 +34,7 @@
       "name": "@commshub99/web",
       "version": "0.0.1",
       "dependencies": {
+        "@commshub99/adapter-imessage": "workspace:*",
         "@commshub99/auth": "workspace:*",
         "@commshub99/core": "workspace:*",
         "@commshub99/db": "workspace:*",
@@ -58,6 +59,13 @@
     "packages/adapters/imessage": {
       "name": "@commshub99/adapter-imessage",
       "version": "0.0.1",
+      "dependencies": {
+        "better-sqlite3": "^12.9.0",
+      },
+      "devDependencies": {
+        "@types/better-sqlite3": "^7.6.13",
+        "@types/node": "^25.6.0",
+      },
     },
     "packages/auth": {
       "name": "@commshub99/auth",
