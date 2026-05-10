@@ -74,7 +74,7 @@ This section reflects the current codebase state after the first local web/admin
 ### Deployment, operations, and docs
 
 - [ ] **Write single-Mac deployment docs.** Files: `docs/deployment.md`, `README.md`. Include prerequisites, env, DB migration, local admin bootstrap/reset, launchd services, troubleshooting, and remote dev origins. Acceptance: fresh machine setup can follow docs without tribal knowledge. **(sonnet)**
-- [ ] **Polish status/ops output.** Files: `apps/cli/src/index.ts`. Separate historical archived errors from new failures; show last sent time and queue trend. Acceptance: `admin status` no longer reads like an error when only old archived errors exist. **(haiku)**
+- [x] **Polish status/ops output.** Files: `apps/cli/src/index.ts`. Separate historical archived errors from new failures; show last sent time and queue trend. Acceptance: `admin status` no longer reads like an error when only old archived errors exist. **(haiku)**
 - [ ] **Refresh public project docs.** Files: `README.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`. Replace stale "pre-implementation" and update milestone state. Acceptance: docs match what the app can currently do. **(sonnet)**
 - [ ] **Add release smoke checklist.** Files: `docs/deployment.md` or `docs/release-smoke.md`. Include local web login, approvals, status, imsg-agent services, and remote server checks. Acceptance: checklist catches the recent module/dev-origin/send-service issues. **(haiku)**
 

@@ -112,6 +112,25 @@ function latestFile(directory: string) {
   );
 }
 
+function displayTimestamp(timestampMs: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(timestampMs));
+}
+
+function queueState(drafts: number, outbox: number) {
+  if (outbox > 0) {
+    return `${outbox} queued send(s) waiting for imsg-agent`;
+  }
+
+  if (drafts > 0) {
+    return `${drafts} draft(s) waiting for review`;
+  }
+
+  return "idle";
+}
+
 function frontmatter(content: string) {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   const values = new Map<string, string>();
@@ -251,6 +270,7 @@ async function printStatus() {
   const monitor = launchdStatus("com.imsg-agent.archive-monitor");
   const worker = launchdStatus("com.imsg-agent.worker");
   const latestError = latestFile(join(dataDir, "errors"));
+  const latestSent = latestFile(join(dataDir, "sent"));
 
   console.log("commshub99 status\n");
   printCheck(
@@ -278,12 +298,14 @@ async function printStatus() {
   console.log(`drafts: ${drafts}`);
   console.log(`outbox: ${outbox}`);
   console.log(`sent: ${sent}`);
-  console.log(`errors: ${errors}`);
+  console.log(`archived errors: ${errors}`);
+  console.log(`last sent: ${latestSent ? displayTimestamp(latestSent.mtimeMs) : "none"}`);
+  console.log(`queue state: ${queueState(drafts, outbox)}`);
 
   if (latestError) {
     const meta = frontmatter(readFileSync(latestError.path, "utf8"));
 
-    console.log("\nlatest error");
+    console.log("\nlatest archived error");
     console.log(`file: ${latestError.name}`);
     console.log(`failed_at: ${meta.get("failed_at") || "unknown"}`);
     console.log(`chat_id: ${meta.get("chat_id") || "unknown"}`);
