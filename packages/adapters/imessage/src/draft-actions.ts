@@ -2,7 +2,7 @@
 import type { Dirent } from "node:fs";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { dirname, join, sep } from "node:path";
 import Database from "better-sqlite3";
 import { parseFrontmatter } from "./frontmatter.js";
 import {
@@ -175,6 +175,7 @@ function writeOutboxContent(content: string) {
 async function atomicWrite(path: string, content: string) {
   const tmpPath = `${path}.tmp`;
 
+  await mkdir(dirname(path), { recursive: true });
   await writeFile(tmpPath, content, "utf8");
   await rename(tmpPath, path);
 }
