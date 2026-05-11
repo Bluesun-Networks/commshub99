@@ -40,7 +40,14 @@ export async function GET(request: Request) {
     return auth.response;
   }
 
-  return NextResponse.json({
-    drafts: await listImessageDrafts({ tenantId: defaultTenantId(auth.session.user.id) }),
-  });
+  try {
+    return NextResponse.json({
+      drafts: await listImessageDrafts({ tenantId: defaultTenantId(auth.session.user.id) }),
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not load draft proposals" },
+      { status: 500 },
+    );
+  }
 }

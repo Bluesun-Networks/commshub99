@@ -483,16 +483,30 @@ function downloadText(filename: string, content: string, type: string) {
 
 async function loadDraftProposals() {
   const response = await fetch("/api/imessage/drafts", { cache: "no-store" });
-  const payload = (await response.json()) as {
+  const payload = await responseJson<{
     drafts?: DraftProposal[];
     error?: string;
-  };
+  }>(response);
 
   if (!response.ok) {
     throw new Error(payload.error ?? "Could not load draft proposals");
   }
 
   return payload.drafts ?? [];
+}
+
+async function responseJson<T extends { error?: string }>(response: Response): Promise<T> {
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return (response.ok ? {} : { error: response.statusText }) as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return { error: response.ok ? "Invalid JSON response" : response.statusText } as T;
+  }
 }
 
 async function loadScheduledSends() {
