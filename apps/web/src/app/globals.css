@@ -1021,6 +1021,17 @@ tr:last-child td {
   font-size: 0.9rem;
 }
 
+.context-action-note {
+  margin: 0;
+  border: 1px solid #c8d6d3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f5fbf9;
+  color: #15564f;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
 .contacts-layout {
   min-height: 520px;
   display: grid;

@@ -1198,14 +1198,6 @@ function Conversations({
             value={query}
           />
         </label>
-        <button
-          className="action-button"
-          disabled
-          title="Draft creation is not wired yet"
-          type="button"
-        >
-          New draft
-        </button>
       </div>
 
       {error ? (
@@ -1277,14 +1269,7 @@ function Conversations({
                         Linked to {selectedConversation.linkedContact.name}
                       </span>
                     ) : (
-                      <button
-                        className="ghost-button"
-                        disabled
-                        title="No automatic contacts-mcp match exists for this handle yet"
-                        type="button"
-                      >
-                        Link contact
-                      </button>
+                      <span className="linked-contact-pill">Needs contact</span>
                     )}
                     <button
                       className="ghost-button"
@@ -1293,14 +1278,6 @@ function Conversations({
                     >
                       <Tag aria-hidden size={17} />
                       Context
-                    </button>
-                    <button
-                      className="ghost-button"
-                      disabled
-                      title="Archive actions require the channel adapter"
-                      type="button"
-                    >
-                      Archive
                     </button>
                   </div>
                 </div>
@@ -1348,6 +1325,7 @@ function Contacts({
 }) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const topicsSectionRef = useRef<HTMLElement>(null);
   const [managedContacts, setManagedContacts] = useState<Contact[]>(contacts);
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [query, setQuery] = useState("");
@@ -1672,6 +1650,13 @@ function Contacts({
     );
   }
 
+  function openContactTopics(contact: Contact) {
+    setSelectedId(contact.id);
+    window.requestAnimationFrame(() => {
+      topicsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   const tracked = selectedContact ? trackedIds.includes(selectedContact.id) : false;
 
   return (
@@ -1821,8 +1806,13 @@ function Contacts({
                     >
                       <Tag aria-label="Edit context" size={15} />
                     </button>
-                    <button className="mini-icon-button" disabled title="Topics" type="button">
-                      <MessageSquareText aria-label="Topics" size={15} />
+                    <button
+                      className="mini-icon-button"
+                      onClick={() => openContactTopics(contact)}
+                      title="Open topics"
+                      type="button"
+                    >
+                      <MessageSquareText aria-label="Open topics" size={15} />
                     </button>
                   </div>
                 </div>
@@ -1904,8 +1894,7 @@ function Contacts({
                         </button>
                         <button
                           className="ghost-button"
-                          disabled
-                          title="Topics are not wired yet"
+                          onClick={() => openContactTopics(activeContact)}
                           type="button"
                         >
                           <MessageSquareText aria-hidden size={17} />
@@ -2015,8 +2004,12 @@ function Contacts({
                   </section>
                 ) : null}
 
-                <section className="contact-section" aria-labelledby="contact-tags-heading">
-                  <h3 id="contact-tags-heading">Tags</h3>
+                <section
+                  className="contact-section"
+                  aria-labelledby="contact-topics-heading"
+                  ref={topicsSectionRef}
+                >
+                  <h3 id="contact-topics-heading">Topics</h3>
                   <div className="tag-cloud">
                     {activeContact.categories.map((tag) => (
                       <span className="contact-tag" key={tag}>
@@ -2978,9 +2971,29 @@ function ContextView({
   onRefresh: () => Promise<void>;
 }) {
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNote, setActionNote] = useState<string | null>(null);
   const [contactDraft, setContactDraft] = useState(defaultContextDraft("contact"));
   const [conversationDraft, setConversationDraft] = useState(defaultContextDraft("conversation"));
   const [hiddenSuggestions, setHiddenSuggestions] = useState<Set<string>>(new Set());
+  const contactEditorRef = useRef<HTMLDivElement>(null);
+  const conversationEditorRef = useRef<HTMLDivElement>(null);
+
+  function suggestionKey(suggestion: ContextSuggestionView) {
+    return `${suggestion.contextType}:${suggestion.targetKey}`;
+  }
+
+  function focusEditor(scope: "contact" | "conversation") {
+    const editor = scope === "contact" ? contactEditorRef.current : conversationEditorRef.current;
+
+    window.requestAnimationFrame(() => {
+      editor?.scrollIntoView({ behavior: "smooth", block: "start" });
+      editor
+        ?.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+          "input, textarea, select",
+        )
+        ?.focus();
+    });
+  }
 
   useEffect(() => {
     if (!focus || !data) {
@@ -3020,6 +3033,7 @@ function ContextView({
 
   async function saveContext(scope: "contact" | "conversation", draft: ContextRecordView) {
     setActionError(null);
+    setActionNote(null);
 
     try {
       const response = await fetchWithTimeout("/api/context", {
@@ -3040,6 +3054,9 @@ function ContextView({
       }
 
       await onRefresh();
+      setActionNote(
+        `Saved ${draft.displayName || draft.contactKey || draft.roomKey || "context"}.`,
+      );
     } catch (saveError) {
       setActionError(saveError instanceof Error ? saveError.message : "Could not save context");
     }
@@ -3063,8 +3080,14 @@ function ContextView({
 
   function applySuggestion(suggestion: ContextSuggestionView) {
     const targetKey = suggestion.targetKey.replace(/^imessage:/, "");
+    const existing =
+      suggestion.contextType === "contact"
+        ? data?.contactContexts.find((record) => record.contactKey === suggestion.targetKey)
+        : data?.conversationContexts.find(
+            (record) => record.channelId === "imessage" && record.roomKey === targetKey,
+          );
     const next = {
-      ...defaultContextDraft(suggestion.contextType),
+      ...(existing ?? defaultContextDraft(suggestion.contextType)),
       allowedPersonalDetails: suggestion.payload.allowedPersonalDetails,
       customPrompt: suggestion.payload.customPrompt,
       displayName: suggestion.payload.displayName,
@@ -3075,13 +3098,18 @@ function ContextView({
 
     if (suggestion.contextType === "contact") {
       setContactDraft({ ...next, contactKey: suggestion.targetKey });
+      setActionNote(`Loaded ${suggestion.payload.displayName} into Contact Context.`);
+      focusEditor("contact");
     } else {
       setConversationDraft({ ...next, channelId: "imessage", roomKey: targetKey });
+      setActionNote(`Loaded ${suggestion.payload.displayName} into Conversation Context.`);
+      focusEditor("conversation");
     }
   }
 
   const suggestions =
-    data?.suggestions.filter((suggestion) => !hiddenSuggestions.has(suggestion.targetKey)) ?? [];
+    data?.suggestions.filter((suggestion) => !hiddenSuggestions.has(suggestionKey(suggestion))) ??
+    [];
 
   return (
     <section className="content-band context-layout" aria-labelledby="context-heading">
@@ -3098,6 +3126,7 @@ function ContextView({
         </button>
       </div>
       {actionError ? <p className="draft-action-error">{actionError}</p> : null}
+      {actionNote ? <p className="context-action-note">{actionNote}</p> : null}
       {error ? (
         <EmptyState
           action={
@@ -3121,39 +3150,51 @@ function ContextView({
       {!error && !loading ? (
         <>
           <div className="context-editor-grid">
-            <ContextEditor
-              canEditContext={canEditContext}
-              draft={contactDraft}
-              keyField="contactKey"
-              keyLabel="Contact key"
-              onChange={setContactDraft}
-              onSave={() => void saveContext("contact", contactDraft)}
-              onToggleDetail={(detail) => toggleDetail(contactDraft, setContactDraft, detail)}
-              title="Contact Context"
-            />
-            <ContextEditor
-              canEditContext={canEditContext}
-              draft={conversationDraft}
-              keyField="roomKey"
-              keyLabel="Room key"
-              onChange={setConversationDraft}
-              onSave={() => void saveContext("conversation", conversationDraft)}
-              onToggleDetail={(detail) =>
-                toggleDetail(conversationDraft, setConversationDraft, detail)
-              }
-              title="Conversation Context"
-            />
+            <div ref={contactEditorRef}>
+              <ContextEditor
+                canEditContext={canEditContext}
+                draft={contactDraft}
+                keyField="contactKey"
+                keyLabel="Contact key"
+                onChange={setContactDraft}
+                onSave={() => void saveContext("contact", contactDraft)}
+                onToggleDetail={(detail) => toggleDetail(contactDraft, setContactDraft, detail)}
+                title="Contact Context"
+              />
+            </div>
+            <div ref={conversationEditorRef}>
+              <ContextEditor
+                canEditContext={canEditContext}
+                draft={conversationDraft}
+                keyField="roomKey"
+                keyLabel="Room key"
+                onChange={setConversationDraft}
+                onSave={() => void saveContext("conversation", conversationDraft)}
+                onToggleDetail={(detail) =>
+                  toggleDetail(conversationDraft, setConversationDraft, detail)
+                }
+                title="Conversation Context"
+              />
+            </div>
           </div>
           <div className="context-columns">
             <ContextList
               records={data?.contactContexts ?? []}
               title="Saved Contacts"
-              onEdit={(record) => setContactDraft(record)}
+              onEdit={(record) => {
+                setContactDraft(record);
+                setActionNote(`Loaded ${record.displayName || record.contactKey}.`);
+                focusEditor("contact");
+              }}
             />
             <ContextList
               records={data?.conversationContexts ?? []}
               title="Saved Rooms"
-              onEdit={(record) => setConversationDraft(record)}
+              onEdit={(record) => {
+                setConversationDraft(record);
+                setActionNote(`Loaded ${record.displayName || record.roomKey}.`);
+                focusEditor("conversation");
+              }}
             />
           </div>
           <section className="context-suggestions" aria-labelledby="context-suggestions-heading">
@@ -3212,7 +3253,7 @@ function ContextView({
                         className="ghost-button"
                         onClick={() =>
                           setHiddenSuggestions((current) =>
-                            new Set(current).add(suggestion.targetKey),
+                            new Set(current).add(suggestionKey(suggestion)),
                           )
                         }
                         type="button"
@@ -3373,15 +3414,10 @@ function People() {
     <section className="content-band" aria-labelledby="people-heading">
       <div className="section-heading">
         <h2 id="people-heading">People</h2>
-        <button
-          className="action-button"
-          disabled
-          title="Auth and invite flow are not wired yet"
-          type="button"
-        >
+        <span className="linked-contact-pill">
           <UserPlus aria-hidden size={17} />
-          Invite
-        </button>
+          Invite flow pending
+        </span>
       </div>
       <div className="table-wrap">
         <table>
@@ -3446,14 +3482,7 @@ function SettingsView({ mode, onSelectMode }: { mode: Mode; onSelectMode: (mode:
           <strong>iMessage</strong>
           <span>Read-only adapter setup is queued.</span>
         </span>
-        <button
-          className="action-button"
-          disabled
-          title="iMessage adapter is not connected yet"
-          type="button"
-        >
-          Configure
-        </button>
+        <StatusBadge tone="waiting">Configured by env</StatusBadge>
       </div>
     </section>
   );
