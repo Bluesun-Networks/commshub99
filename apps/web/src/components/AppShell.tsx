@@ -2149,9 +2149,11 @@ function Approvals({
     setEditText(draft.text);
   }
 
-  async function approveDraft(uuid: string) {
+  async function approveDraft(uuid: string, overrideContextSafeguards = false) {
     await runDraftAction(uuid, () =>
       fetchWithTimeout(`/api/imessage/drafts/${encodeURIComponent(uuid)}/approve`, {
+        body: JSON.stringify({ overrideContextSafeguards }),
+        headers: { "content-type": "application/json" },
         method: "POST",
       }),
     );
@@ -2461,6 +2463,7 @@ function Approvals({
         <div className="draft-grid">
           {visibleDrafts.map(({ draft, importance, recipient }) => {
             const isRejecting = rejectingUuid === draft.uuid;
+            const requiresContextOverride = draft.context?.replyPosture === "do_not_reply";
             const activeSchedules = schedulesByDraftId.get(`imessage:draft:${draft.uuid}`) ?? [];
             const nextSchedule = activeSchedules[0] ?? null;
 
@@ -2695,17 +2698,32 @@ function Approvals({
                     <>
                       <HoldConfirmButton
                         className="action-button"
-                        disabled={!canMutateDrafts || busyUuid === draft.uuid}
+                        disabled={
+                          !canMutateDrafts || busyUuid === draft.uuid || requiresContextOverride
+                        }
                         confirmingLabel="Keep holding..."
                         onConfirm={() => void approveDraft(draft.uuid)}
                         title={
-                          canMutateDrafts
-                            ? "Hold to mark approved for imsg-agent"
-                            : "Only admins can approve drafts"
+                          requiresContextOverride
+                            ? "Context marks this draft do_not_reply; use override to approve"
+                            : canMutateDrafts
+                              ? "Hold to mark approved for imsg-agent"
+                              : "Only admins can approve drafts"
                         }
                       >
                         Hold to approve
                       </HoldConfirmButton>
+                      {requiresContextOverride ? (
+                        <HoldConfirmButton
+                          className="danger-button"
+                          disabled={!canMutateDrafts || busyUuid === draft.uuid}
+                          confirmingLabel="Keep holding..."
+                          onConfirm={() => void approveDraft(draft.uuid, true)}
+                          title="Audit an explicit context override and queue this draft"
+                        >
+                          Override context
+                        </HoldConfirmButton>
+                      ) : null}
                       <button
                         className="ghost-button"
                         disabled={!canMutateDrafts || busyUuid === draft.uuid}

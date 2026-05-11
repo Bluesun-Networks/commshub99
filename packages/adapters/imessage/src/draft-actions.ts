@@ -20,6 +20,10 @@ export interface DraftActionResult {
   uuid: string;
 }
 
+export interface ApproveImessageDraftOptions {
+  overrideContextSafeguards?: boolean;
+}
+
 async function findDraftPath(directory: string, uuid: string): Promise<string | null> {
   let entries: Dirent[];
 
@@ -97,6 +101,16 @@ function addRejectMetadata(content: string, futureNote: string) {
   }
 
   return `---\n${metadata.join("\n")}\n---\n${(match[2] ?? "").trim()}\n`;
+}
+
+function contextSafeguardViolation(content: string) {
+  const { meta } = parseFrontmatter(content);
+
+  if (meta.get("context_reply_posture") === "do_not_reply") {
+    return "Context marks this draft as do_not_reply. Approve again with an explicit override to queue it.";
+  }
+
+  return null;
 }
 
 function readChatService(chatId: number) {
@@ -218,7 +232,10 @@ export async function updateImessageDraft(uuid: string, text: string): Promise<D
   };
 }
 
-export async function approveImessageDraft(uuid: string): Promise<DraftActionResult> {
+export async function approveImessageDraft(
+  uuid: string,
+  options: ApproveImessageDraftOptions = {},
+): Promise<DraftActionResult> {
   const outboxPath = outboxPathFor(uuid);
   const draftPath = await findDraftPath(resolveImessageChatsPath(), uuid);
 
@@ -237,6 +254,11 @@ export async function approveImessageDraft(uuid: string): Promise<DraftActionRes
 
   const requiredDraftPath = requireDraftPath(draftPath);
   const content = await readFile(requiredDraftPath, "utf8");
+  const violation = contextSafeguardViolation(content);
+
+  if (violation && !options.overrideContextSafeguards) {
+    throw new Error(violation);
+  }
 
   await atomicWrite(outboxPath, writeOutboxContent(content));
   await unlink(requiredDraftPath);

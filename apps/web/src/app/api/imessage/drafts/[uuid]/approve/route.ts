@@ -17,13 +17,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ uui
   const { uuid } = await params;
 
   try {
-    const result = await approveImessageDraft(uuid);
+    const payload = (await request.json().catch(() => ({}))) as {
+      overrideContextSafeguards?: boolean;
+    };
+    const overrideContextSafeguards = payload.overrideContextSafeguards === true;
+    const result = await approveImessageDraft(uuid, { overrideContextSafeguards });
 
     writeRouteDraftMutationAudit({
       action: "draft.approve",
       draftId: uuid,
       payload: {
         alreadyCompleted: result.alreadyCompleted ?? false,
+        overrideContextSafeguards,
         outboxPath: result.outboxPath,
         path: result.draftPath,
       },

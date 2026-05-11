@@ -33,7 +33,7 @@ Anyone with shell access to the host can manage local app users.
 Usage:
   bun run --filter @commshub99/cli admin status
   bun run --filter @commshub99/cli admin pending
-  bun run --filter @commshub99/cli admin approve UUID
+  bun run --filter @commshub99/cli admin approve UUID [--override-context]
   bun run --filter @commshub99/cli admin edit UUID --text TEXT
   bun run --filter @commshub99/cli admin reject UUID [--note NOTE]
   bun run --filter @commshub99/cli admin schedule UUID --at ISO_DATETIME
@@ -448,7 +448,8 @@ function defaultTenantId() {
 }
 
 async function approvePendingDraft(uuid: string) {
-  const result = await approveImessageDraft(uuid);
+  const overrideContextSafeguards = process.argv.includes("--override-context");
+  const result = await approveImessageDraft(uuid, { overrideContextSafeguards });
 
   console.log(`${result.alreadyCompleted ? "Already queued" : "Queued"} ${uuid} for imsg-agent.`);
 }

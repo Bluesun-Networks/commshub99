@@ -90,6 +90,27 @@ describe("iMessage draft actions", () => {
     expect(readFileSync(outboxPath(), "utf8")).not.toContain("Hello there");
   });
 
+  it("blocks do_not_reply drafts unless explicitly overridden", async () => {
+    writeDraft("draft-1", 'context_reply_posture: "do_not_reply"\n');
+
+    await expect(approveImessageDraft("draft-1")).rejects.toThrow("do_not_reply");
+
+    expect(existsSync(draftPath())).toBe(true);
+    expect(existsSync(outboxPath())).toBe(false);
+  });
+
+  it("approves do_not_reply drafts with an explicit override", async () => {
+    writeDraft("draft-1", 'context_reply_posture: "do_not_reply"\ncontext_version_ids: "v1"\n');
+
+    await approveImessageDraft("draft-1", { overrideContextSafeguards: true });
+
+    const outbox = readFileSync(outboxPath(), "utf8");
+
+    expect(existsSync(draftPath())).toBe(false);
+    expect(outbox).toContain('context_reply_posture: "do_not_reply"');
+    expect(outbox).toContain('context_version_ids: "v1"');
+  });
+
   it("treats approve retry as complete when the outbox item already exists", async () => {
     writeDraft();
     await mkdir(join(tempDir, "outbox"), { recursive: true });

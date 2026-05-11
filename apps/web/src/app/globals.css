@@ -393,6 +393,27 @@ tr:last-child td {
   color: var(--muted);
 }
 
+.danger-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #9f2e2e;
+  border-radius: 8px;
+  padding: 0 13px;
+  background: #9f2e2e;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.danger-button:disabled {
+  border-color: var(--line);
+  background: #e9eeea;
+  color: var(--muted);
+}
+
 .hold-confirm {
   position: relative;
   overflow: hidden;
