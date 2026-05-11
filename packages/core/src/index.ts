@@ -20,6 +20,7 @@ export {
 } from "./services/audit.js";
 export {
   ContextService,
+  contextBundleToDraftSnapshot,
   type ResolveContextInput,
   type ResolvedContextBundle,
 } from "./services/context.js";
@@ -74,6 +75,8 @@ export {
   conversationContextSchema,
   conversationMessageSchema,
   conversationSchema,
+  type DraftContextSnapshot,
+  draftContextSnapshotSchema,
   type LinkedContact,
   linkedContactSchema,
   type Message,

@@ -177,9 +177,25 @@ export const contextVersionSchema = z.object({
 });
 export type ContextVersion = z.infer<typeof contextVersionSchema>;
 
+export const draftContextSnapshotSchema = z.object({
+  allowedPersonalDetails: z.array(personalDetailBoundarySchema),
+  contactContextIds: z.array(z.string()),
+  contextVersionIds: z.array(z.string()),
+  customPersonalDetails: z.array(z.string()),
+  customPrompt: z.string(),
+  notes: z.string(),
+  replyPosture: contextReplyPostureSchema,
+  source: z.enum(["draft_metadata", "live"]),
+  tenantId: z.string(),
+  tone: contextToneSchema,
+  conversationContextId: z.string().nullable(),
+});
+export type DraftContextSnapshot = z.infer<typeof draftContextSnapshotSchema>;
+
 export const proposedMessageSchema = z.object({
   approved: z.boolean(),
   chatId: z.string(),
+  context: draftContextSnapshotSchema.nullable().optional(),
   createdAt: z.string(),
   displayCreatedAt: z.string(),
   displaySourceMessageAt: z.string(),

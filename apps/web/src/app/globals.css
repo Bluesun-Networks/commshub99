@@ -898,6 +898,15 @@ tr:last-child td {
   background: #f5fbf9;
 }
 
+.draft-context-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d3d8cc;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8faf2;
+}
+
 .schedule-panel-heading,
 .schedule-controls {
   display: flex;

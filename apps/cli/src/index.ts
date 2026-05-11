@@ -19,7 +19,7 @@ import {
   setLocalAdminUserDisabled,
   setLocalAdminUserRole,
 } from "@commshub99/auth";
-import { ScheduleService } from "@commshub99/core";
+import { ContextService, contextBundleToDraftSnapshot, ScheduleService } from "@commshub99/core";
 import { createDbClient, resolveDatabasePath } from "@commshub99/db";
 import Database from "better-sqlite3";
 
@@ -38,6 +38,7 @@ Usage:
   bun run --filter @commshub99/cli admin reject UUID [--note NOTE]
   bun run --filter @commshub99/cli admin schedule UUID --at ISO_DATETIME
   bun run --filter @commshub99/cli admin context:harvest [--limit N]
+  bun run --filter @commshub99/cli admin context:resolve --chat-id CHAT_ID [--contact-key KEY ...]
   bun run --filter @commshub99/cli admin tail
   bun run --filter @commshub99/cli admin users:list
   bun run --filter @commshub99/cli admin users:create --email EMAIL [--name NAME] [--role admin|readonly] [--password PASSWORD]
@@ -408,7 +409,7 @@ function requirePositional(index: number, label: string) {
 }
 
 async function printPendingDrafts() {
-  const drafts = await listImessageDrafts();
+  const drafts = await listImessageDrafts({ tenantId: defaultTenantId() });
 
   if (drafts.length === 0) {
     console.log("No pending drafts.");
@@ -418,6 +419,7 @@ async function printPendingDrafts() {
   console.table(
     drafts.map((draft) => ({
       chatId: draft.chatId,
+      contextVersions: draft.context?.contextVersionIds.join(",") ?? "",
       createdAt: draft.createdAt,
       preview: draft.text.replace(/\s+/g, " ").slice(0, 80),
       sourceRowid: draft.sourceRowid ?? "",
@@ -502,6 +504,28 @@ function printContextHarvestSuggestions() {
   console.log(JSON.stringify(result.suggestions, null, 2));
 }
 
+function allOptions(name: string) {
+  return process.argv.flatMap((arg, index) =>
+    arg === name ? [process.argv[index + 1] ?? ""] : [],
+  );
+}
+
+function printResolvedContext() {
+  const chatId = requireOption("--chat-id");
+  const contactKeys = allOptions("--contact-key")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const tenantId = defaultTenantId();
+  const bundle = new ContextService().resolve({
+    channelId: "imessage",
+    contactKeys,
+    roomKey: chatId,
+    tenantId,
+  });
+
+  console.log(JSON.stringify(contextBundleToDraftSnapshot(bundle), null, 2));
+}
+
 function printTail() {
   const dataDir = resolveImsgDataDir();
   const latestSent = latestFile(join(dataDir, "sent"));
@@ -555,6 +579,10 @@ async function main() {
 
     case "context:harvest":
       printContextHarvestSuggestions();
+      return;
+
+    case "context:resolve":
+      printResolvedContext();
       return;
 
     case "tail":

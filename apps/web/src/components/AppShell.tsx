@@ -2295,6 +2295,9 @@ function Approvals({
           draft.sourceMessageAt,
           draft.displaySourceMessageAt,
           draft.sourceRowid,
+          draft.context?.replyPosture,
+          draft.context?.tone,
+          draft.context?.contextVersionIds.join(" "),
         ]
           .filter(Boolean)
           .join(" ")
@@ -2515,6 +2518,46 @@ function Approvals({
                   </div>
                 </dl>
                 {draft.reasoning ? <p className="draft-reasoning">{draft.reasoning}</p> : null}
+                {draft.context ? (
+                  <div className="draft-context-panel">
+                    <div className="schedule-panel-heading">
+                      <span>
+                        <Tag aria-hidden size={16} />
+                        Context {draft.context.source === "live" ? "active now" : "from draft"}
+                      </span>
+                      <StatusBadge
+                        tone={draft.context.replyPosture === "do_not_reply" ? "warn" : "ready"}
+                      >
+                        {draft.context.replyPosture}
+                      </StatusBadge>
+                    </div>
+                    <dl className="draft-meta">
+                      <div>
+                        <dt>Tone</dt>
+                        <dd>{draft.context.tone}</dd>
+                      </div>
+                      <div>
+                        <dt>Profiles</dt>
+                        <dd>
+                          {[...draft.context.contactContextIds, draft.context.conversationContextId]
+                            .filter(Boolean)
+                            .join(", ") || "None"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Versions</dt>
+                        <dd>{draft.context.contextVersionIds.join(", ") || "Unversioned"}</dd>
+                      </div>
+                    </dl>
+                    {draft.context.customPrompt || draft.context.notes ? (
+                      <p className="draft-reasoning">
+                        {[draft.context.customPrompt, draft.context.notes]
+                          .filter(Boolean)
+                          .join(" ")}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="schedule-panel">
                   <div className="schedule-panel-heading">
                     <span>

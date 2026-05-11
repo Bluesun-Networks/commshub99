@@ -111,3 +111,28 @@ apply context.
 
 The next context work should persist harvested suggestions for web review, then pass approved
 resolved context bundles to draft generation and approval safeguards.
+
+## Draft context handoff
+
+Draft producers should resolve context before writing a draft and stamp the draft frontmatter with
+the context that shaped generation. The local helper is:
+
+```sh
+bun run --filter @commshub99/cli admin context:resolve --chat-id 67 --contact-key phone:+15551234567
+```
+
+Use the returned JSON to populate these draft frontmatter fields:
+
+- `context_tenant_id`
+- `contact_context_ids` as a comma-separated list
+- `conversation_context_id`
+- `context_version_ids` as a comma-separated list
+- `context_tone`
+- `context_reply_posture`
+- `context_allowed_personal_details` as a comma-separated list
+- `context_custom_personal_details` as a comma-separated list
+
+When those fields are present, commshub99 treats them as the context used at generation time and
+preserves them into the outbox file. When they are missing, the approvals view resolves the current
+live contact and conversation context so admins can still see the active rules that apply to the
+draft.

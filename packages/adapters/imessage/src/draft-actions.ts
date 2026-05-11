@@ -167,6 +167,23 @@ function writeOutboxContent(content: string) {
     outboxMeta.set("model", model);
   }
 
+  for (const key of [
+    "context_tenant_id",
+    "contact_context_ids",
+    "conversation_context_id",
+    "context_version_ids",
+    "context_tone",
+    "context_reply_posture",
+    "context_allowed_personal_details",
+    "context_custom_personal_details",
+  ]) {
+    const value = meta.get(key);
+
+    if (value) {
+      outboxMeta.set(key, value);
+    }
+  }
+
   const frontmatter = [...outboxMeta]
     .map(([key, value]) => `${key}: ${yamlScalar(value)}`)
     .join("\n");

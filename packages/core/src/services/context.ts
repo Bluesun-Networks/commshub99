@@ -6,6 +6,7 @@ import type {
   ContextProfile,
   ContextReplyPosture,
   ConversationContext,
+  DraftContextSnapshot,
   PersonalDetailBoundary,
 } from "../types.js";
 
@@ -19,6 +20,8 @@ export interface ResolveContextInput {
 export interface ResolvedContextBundle {
   contactContexts: ContactContext[];
   conversationContext: ConversationContext | null;
+  contextProfileIds: string[];
+  contextVersionIds: string[];
   effective: {
     allowedPersonalDetails: PersonalDetailBoundary[];
     customPersonalDetails: string[];
@@ -137,6 +140,61 @@ function joinedText(contexts: ContextProfile[], key: "customPrompt" | "notes") {
     .join("\n\n");
 }
 
+function latestVersionIds(tenantId: string, contexts: ContextProfile[]) {
+  if (contexts.length === 0) {
+    return [];
+  }
+
+  const client = createDbClient({ readonly: true });
+
+  try {
+    const statement = client.sqlite.prepare(
+      `SELECT id
+      FROM context_versions
+      WHERE tenant_id = ?
+        AND context_id = ?
+        AND review_status = 'approved'
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    );
+
+    return contexts
+      .map((context) => {
+        const row = statement.get(tenantId, context.id) as { id?: string } | undefined;
+
+        return row?.id ?? "";
+      })
+      .filter(Boolean);
+  } catch (error) {
+    if (error instanceof Error && /no such table: context_versions/.test(error.message)) {
+      return [];
+    }
+
+    throw error;
+  } finally {
+    client.close();
+  }
+}
+
+export function contextBundleToDraftSnapshot(
+  bundle: ResolvedContextBundle,
+  source: DraftContextSnapshot["source"] = "live",
+): DraftContextSnapshot {
+  return {
+    allowedPersonalDetails: bundle.effective.allowedPersonalDetails,
+    contactContextIds: bundle.contactContexts.map((context) => context.id),
+    contextVersionIds: bundle.contextVersionIds,
+    conversationContextId: bundle.conversationContext?.id ?? null,
+    customPersonalDetails: bundle.effective.customPersonalDetails,
+    customPrompt: bundle.effective.customPrompt,
+    notes: bundle.effective.notes,
+    replyPosture: bundle.effective.replyPosture,
+    source,
+    tenantId: bundle.tenantId,
+    tone: bundle.effective.tone,
+  };
+}
+
 export class ContextService {
   resolve(input: ResolveContextInput): ResolvedContextBundle {
     const client = createDbClient();
@@ -176,10 +234,13 @@ export class ContextService {
         ...contactContexts,
         ...(conversationContext ? [conversationContext] : []),
       ];
+      const contextProfileIds = contexts.map((context) => context.id);
 
       return {
         contactContexts,
         conversationContext,
+        contextProfileIds,
+        contextVersionIds: latestVersionIds(input.tenantId, contexts),
         effective: {
           allowedPersonalDetails: intersection(
             contexts.map((context) => context.allowedPersonalDetails),
