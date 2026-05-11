@@ -125,6 +125,24 @@ type ContextDataView = {
   suggestions: ContextSuggestionView[];
   tenantId: string;
 };
+type ContextFocus =
+  | {
+      contactKey: string;
+      displayName: string;
+      token: number;
+      type: "contact";
+    }
+  | {
+      displayName: string;
+      roomKey: string;
+      token: number;
+      type: "conversation";
+    };
+type ConversationFocus = {
+  query: string;
+  selectedId?: string;
+  token: number;
+};
 type ReviewWindowId = "day" | "48h" | "week" | "month" | "year";
 const holdConfirmMs = 1200;
 
@@ -559,6 +577,14 @@ function normalizedContact(value: unknown): Contact | null {
   };
 }
 
+function contactContextKey(contact: Contact) {
+  return contact.id || contact.phonePoints[0]?.value || contact.emailPoints[0]?.value;
+}
+
+function conversationRoomKey(conversation: Conversation) {
+  return conversation.id.split(":").at(-1) ?? conversation.id;
+}
+
 function parseVcardContacts(text: string) {
   return text
     .split(/BEGIN:VCARD/i)
@@ -634,6 +660,8 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
   const [contextData, setContextData] = useState<ContextDataView | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [contextLoading, setContextLoading] = useState(true);
+  const [contextFocus, setContextFocus] = useState<ContextFocus | null>(null);
+  const [conversationFocus, setConversationFocus] = useState<ConversationFocus | null>(null);
 
   const refreshApprovals = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) {
@@ -673,6 +701,44 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
     } finally {
       setContextLoading(false);
     }
+  }, []);
+
+  const openContactContext = useCallback((contact: Contact) => {
+    const key = contactContextKey(contact);
+
+    if (!key) {
+      return;
+    }
+
+    setContextFocus({
+      contactKey: key,
+      displayName: contact.displayName,
+      token: Date.now(),
+      type: "contact",
+    });
+    setActiveView("context");
+  }, []);
+
+  const openConversationContext = useCallback((conversation: Conversation) => {
+    setContextFocus({
+      displayName: conversation.contact,
+      roomKey: conversationRoomKey(conversation),
+      token: Date.now(),
+      type: "conversation",
+    });
+    setActiveView("context");
+  }, []);
+
+  const openContactConversations = useCallback((contact: Contact) => {
+    setConversationFocus({
+      query:
+        contact.displayName ||
+        contact.phonePoints[0]?.value ||
+        contact.emailPoints[0]?.value ||
+        contact.id,
+      token: Date.now(),
+    });
+    setActiveView("conversations");
   }, []);
 
   useEffect(() => {
@@ -912,7 +978,9 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
           <Conversations
             conversations={conversations}
             error={conversationError}
+            focus={conversationFocus}
             loading={conversationsLoading}
+            onOpenConversationContext={openConversationContext}
           />
         ) : null}
         {activeView === "contacts" ? (
@@ -921,6 +989,8 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
             contacts={contacts}
             error={contactError}
             loading={contactsLoading}
+            onOpenContactContext={openContactContext}
+            onOpenContactConversations={openContactConversations}
           />
         ) : null}
         {activeView === "approvals" ? (
@@ -931,6 +1001,8 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
             drafts={drafts}
             error={draftError}
             loading={draftsLoading}
+            onOpenContactContext={openContactContext}
+            onOpenConversationContext={openConversationContext}
             onRefresh={refreshApprovals}
             schedules={schedules}
           />
@@ -940,6 +1012,7 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
             canEditContext={currentUser.role === "admin"}
             data={contextData}
             error={contextError}
+            focus={contextFocus}
             loading={contextLoading}
             onRefresh={refreshContext}
           />
@@ -1053,11 +1126,15 @@ function Overview({
 function Conversations({
   conversations,
   error,
+  focus,
   loading,
+  onOpenConversationContext,
 }: {
   conversations: Conversation[];
   error: string | null;
+  focus: ConversationFocus | null;
   loading: boolean;
+  onOpenConversationContext: (conversation: Conversation) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [query, setQuery] = useState("");
@@ -1072,6 +1149,18 @@ function Conversations({
       setSelectedId(conversations[0]?.id);
     }
   }, [conversations, selectedId]);
+
+  useEffect(() => {
+    if (!focus) {
+      return;
+    }
+
+    setQuery(focus.query);
+
+    if (focus.selectedId) {
+      setSelectedId(focus.selectedId);
+    }
+  }, [focus]);
 
   const filteredConversations = conversations.filter((conversation) => {
     const searchableText = [
@@ -1199,6 +1288,14 @@ function Conversations({
                     )}
                     <button
                       className="ghost-button"
+                      onClick={() => onOpenConversationContext(selectedConversation)}
+                      type="button"
+                    >
+                      <Tag aria-hidden size={17} />
+                      Context
+                    </button>
+                    <button
+                      className="ghost-button"
                       disabled
                       title="Archive actions require the channel adapter"
                       type="button"
@@ -1239,11 +1336,15 @@ function Contacts({
   contacts,
   error,
   loading,
+  onOpenContactContext,
+  onOpenContactConversations,
 }: {
   canWriteContacts: boolean;
   contacts: Contact[];
   error: string | null;
   loading: boolean;
+  onOpenContactContext: (contact: Contact) => void;
+  onOpenContactConversations: (contact: Contact) => void;
 }) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -1678,30 +1779,53 @@ function Contacts({
           <ul className="contact-list" aria-label="Contacts">
             {filteredContacts.map((contact) => (
               <li key={contact.id}>
-                <button
-                  aria-pressed={selectedContact?.id === contact.id}
-                  className="contact-row"
-                  onClick={() => setSelectedId(contact.id)}
-                  type="button"
-                >
-                  <ContactAvatar contact={contact} />
-                  <span>
-                    <strong>{contact.displayName}</strong>
+                <div className="contact-row-shell">
+                  <button
+                    aria-pressed={selectedContact?.id === contact.id}
+                    className="contact-row"
+                    onClick={() => setSelectedId(contact.id)}
+                    type="button"
+                  >
+                    <ContactAvatar contact={contact} />
                     <span>
-                      {contact.organizationName ||
-                        contact.phonePoints[0]?.value ||
-                        contact.emailPoints[0]?.value}
+                      <strong>{contact.displayName}</strong>
+                      <span>
+                        {contact.organizationName ||
+                          contact.phonePoints[0]?.value ||
+                          contact.emailPoints[0]?.value}
+                      </span>
                     </span>
-                  </span>
-                  <span className="contact-row-stack">
-                    {trackedIds.includes(contact.id) ? (
-                      <Bell aria-label="Tracked contact" size={15} />
-                    ) : null}
-                    <StatusBadge tone={contact.conversationCount > 0 ? "ready" : "waiting"}>
-                      {contact.conversationCount} chats
-                    </StatusBadge>
-                  </span>
-                </button>
+                    <span className="contact-row-stack">
+                      {trackedIds.includes(contact.id) ? (
+                        <Bell aria-label="Tracked contact" size={15} />
+                      ) : null}
+                      <StatusBadge tone={contact.conversationCount > 0 ? "ready" : "waiting"}>
+                        {contact.conversationCount} chats
+                      </StatusBadge>
+                    </span>
+                  </button>
+                  <div className="primitive-actions">
+                    <button
+                      className="mini-icon-button"
+                      onClick={() => onOpenContactConversations(contact)}
+                      title="Open conversations"
+                      type="button"
+                    >
+                      <MessageCircle aria-label="Open conversations" size={15} />
+                    </button>
+                    <button
+                      className="mini-icon-button"
+                      onClick={() => onOpenContactContext(contact)}
+                      title="Edit context"
+                      type="button"
+                    >
+                      <Tag aria-label="Edit context" size={15} />
+                    </button>
+                    <button className="mini-icon-button" disabled title="Topics" type="button">
+                      <MessageSquareText aria-label="Topics" size={15} />
+                    </button>
+                  </div>
+                </div>
               </li>
             ))}
 
@@ -1762,6 +1886,31 @@ function Contacts({
                       </>
                     ) : (
                       <>
+                        <button
+                          className="ghost-button"
+                          onClick={() => onOpenContactConversations(activeContact)}
+                          type="button"
+                        >
+                          <MessageCircle aria-hidden size={17} />
+                          Conversations
+                        </button>
+                        <button
+                          className="ghost-button"
+                          onClick={() => onOpenContactContext(activeContact)}
+                          type="button"
+                        >
+                          <Tag aria-hidden size={17} />
+                          Context
+                        </button>
+                        <button
+                          className="ghost-button"
+                          disabled
+                          title="Topics are not wired yet"
+                          type="button"
+                        >
+                          <MessageSquareText aria-hidden size={17} />
+                          Topics
+                        </button>
                         <button
                           className="ghost-button"
                           disabled={!canWriteContacts}
@@ -2050,6 +2199,8 @@ function Approvals({
   drafts,
   error,
   loading,
+  onOpenContactContext,
+  onOpenConversationContext,
   onRefresh,
   schedules,
 }: {
@@ -2059,6 +2210,8 @@ function Approvals({
   drafts: DraftProposal[];
   error: string | null;
   loading: boolean;
+  onOpenContactContext: (contact: Contact) => void;
+  onOpenConversationContext: (conversation: Conversation) => void;
   onRefresh: () => Promise<void>;
   schedules: ScheduledSendView[];
 }) {
@@ -2464,6 +2617,8 @@ function Approvals({
           {visibleDrafts.map(({ draft, importance, recipient }) => {
             const isRejecting = rejectingUuid === draft.uuid;
             const requiresContextOverride = draft.context?.replyPosture === "do_not_reply";
+            const recipientContact = recipient.contact;
+            const recipientConversation = recipient.conversation;
             const activeSchedules = schedulesByDraftId.get(`imessage:draft:${draft.uuid}`) ?? [];
             const nextSchedule = activeSchedules[0] ?? null;
 
@@ -2503,6 +2658,28 @@ function Approvals({
                   </span>
                   {draft.displaySourceMessageAt ? (
                     <span>{draft.displaySourceMessageAt}</span>
+                  ) : null}
+                </div>
+                <div className="primitive-actions">
+                  {recipientConversation ? (
+                    <button
+                      className="ghost-button"
+                      onClick={() => onOpenConversationContext(recipientConversation)}
+                      type="button"
+                    >
+                      <Tag aria-hidden size={16} />
+                      Conversation context
+                    </button>
+                  ) : null}
+                  {recipientContact ? (
+                    <button
+                      className="ghost-button"
+                      onClick={() => onOpenContactContext(recipientContact)}
+                      type="button"
+                    >
+                      <UsersRound aria-hidden size={16} />
+                      Contact context
+                    </button>
                   ) : null}
                 </div>
                 {editingUuid === draft.uuid ? null : <p>{draft.text}</p>}
@@ -2789,12 +2966,14 @@ function ContextView({
   canEditContext,
   data,
   error,
+  focus,
   loading,
   onRefresh,
 }: {
   canEditContext: boolean;
   data: ContextDataView | null;
   error: string | null;
+  focus: ContextFocus | null;
   loading: boolean;
   onRefresh: () => Promise<void>;
 }) {
@@ -2802,6 +2981,42 @@ function ContextView({
   const [contactDraft, setContactDraft] = useState(defaultContextDraft("contact"));
   const [conversationDraft, setConversationDraft] = useState(defaultContextDraft("conversation"));
   const [hiddenSuggestions, setHiddenSuggestions] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!focus || !data) {
+      return;
+    }
+
+    if (focus.type === "contact") {
+      const existing = data.contactContexts.find(
+        (record) => record.contactKey === focus.contactKey,
+      );
+
+      setContactDraft(
+        existing ?? {
+          ...defaultContextDraft("contact"),
+          contactKey: focus.contactKey,
+          displayName: focus.displayName,
+          tenantId: data.tenantId,
+        },
+      );
+      return;
+    }
+
+    const existing = data.conversationContexts.find(
+      (record) => record.channelId === "imessage" && record.roomKey === focus.roomKey,
+    );
+
+    setConversationDraft(
+      existing ?? {
+        ...defaultContextDraft("conversation"),
+        channelId: "imessage",
+        displayName: focus.displayName,
+        roomKey: focus.roomKey,
+        tenantId: data.tenantId,
+      },
+    );
+  }, [data, focus]);
 
   async function saveContext(scope: "contact" | "conversation", draft: ContextRecordView) {
     setActionError(null);
