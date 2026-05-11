@@ -40,6 +40,7 @@ import {
   X,
 } from "lucide-react";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -150,6 +151,15 @@ type ConversationFocus = {
   selectedId?: string;
   token: number;
 };
+type RouteState = {
+  contactContextId?: string;
+  contactConversationsId?: string;
+  contactId?: string;
+  contextFocus?: ContextFocus;
+  conversationContextId?: string;
+  conversationId?: string;
+  view: View;
+};
 type ReviewWindowId = "day" | "48h" | "week" | "month" | "year";
 const holdConfirmMs = 1200;
 
@@ -209,6 +219,99 @@ const contextTones = ["polite", "warm", "direct", "terse", "avoid_rude"];
 const contextReplyPostures = ["do_not_reply", "reply_if_needed", "usually_reply", "always_reply"];
 const contextSignatureModes = ["inherit", "append", "override"];
 const personalDetailChoices = ["location", "health_updates", "daily_agenda", "family_updates"];
+
+function pathSegment(value: string) {
+  return encodeURIComponent(value);
+}
+
+function readPathSegment(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function viewPath(view: View) {
+  return view === "overview" ? "/overview" : `/${view}`;
+}
+
+function routeFromPath(pathname: string): RouteState {
+  const cleanPath = pathname.split("?")[0] ?? "";
+  const [root, id, action] = cleanPath.split("/").filter(Boolean).map(readPathSegment);
+
+  if (root === "conversations") {
+    const conversationId = id;
+
+    return action === "context" && conversationId
+      ? { conversationContextId: conversationId, conversationId, view: "context" }
+      : conversationId
+        ? { conversationId, view: "conversations" }
+        : { view: "conversations" };
+  }
+
+  if (root === "contacts") {
+    const contactId = id;
+
+    if (contactId && action === "conversations") {
+      return { contactConversationsId: contactId, view: "conversations" };
+    }
+
+    if (contactId && action === "context") {
+      return { contactContextId: contactId, contactId, view: "context" };
+    }
+
+    return contactId ? { contactId, view: "contacts" } : { view: "contacts" };
+  }
+
+  if (root === "context" && id === "contact" && action) {
+    return {
+      contextFocus: {
+        contactKey: action,
+        displayName: action,
+        token: Date.now(),
+        type: "contact",
+      },
+      view: "context",
+    };
+  }
+
+  if (root === "context" && id === "conversation" && action) {
+    return {
+      contextFocus: {
+        displayName: action,
+        roomKey: action,
+        token: Date.now(),
+        type: "conversation",
+      },
+      view: "context",
+    };
+  }
+
+  if (
+    root === "approvals" ||
+    root === "context" ||
+    root === "people" ||
+    root === "settings" ||
+    root === "overview"
+  ) {
+    return { view: root };
+  }
+
+  return { view: "overview" };
+}
+
+function conversationRouteId(conversation: Conversation) {
+  return conversation.id;
+}
+
+function conversationRoomKey(conversation: Conversation) {
+  return conversation.id.split(":").at(-1) ?? conversation.id;
+}
 
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
   return <span className={`status status-${tone}`}>{children}</span>;
@@ -603,10 +706,6 @@ function contactContextKey(contact: Contact) {
   return contact.id || contact.phonePoints[0]?.value || contact.emailPoints[0]?.value;
 }
 
-function conversationRoomKey(conversation: Conversation) {
-  return conversation.id.split(":").at(-1) ?? conversation.id;
-}
-
 function parseVcardContacts(text: string) {
   return text
     .split(/BEGIN:VCARD/i)
@@ -666,8 +765,17 @@ function parseVcardContacts(text: string) {
     });
 }
 
-export function AppShell({ currentUser }: { currentUser: PublicUser }) {
-  const [activeView, setActiveView] = useState<View>("overview");
+export function AppShell({
+  currentUser,
+  initialPath,
+}: {
+  currentUser: PublicUser;
+  initialPath: string;
+}) {
+  const router = useRouter();
+  const pathname = usePathname() || initialPath || "/";
+  const route = useMemo(() => routeFromPath(pathname), [pathname]);
+  const [activeView, setActiveView] = useState<View>(() => routeFromPath(initialPath).view);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [conversationsLoading, setConversationsLoading] = useState(true);
@@ -684,6 +792,23 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
   const [contextLoading, setContextLoading] = useState(true);
   const [contextFocus, setContextFocus] = useState<ContextFocus | null>(null);
   const [conversationFocus, setConversationFocus] = useState<ConversationFocus | null>(null);
+
+  const navigateTo = useCallback(
+    (path: string) => {
+      if (pathname !== path) {
+        router.push(path);
+      }
+    },
+    [pathname, router],
+  );
+
+  const navigateView = useCallback(
+    (view: View) => {
+      setActiveView(view);
+      navigateTo(viewPath(view));
+    },
+    [navigateTo],
+  );
 
   const refreshApprovals = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) {
@@ -725,43 +850,129 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
     }
   }, []);
 
-  const openContactContext = useCallback((contact: Contact) => {
-    const key = contactContextKey(contact);
+  const openContactContext = useCallback(
+    (contact: Contact) => {
+      const key = contactContextKey(contact);
 
-    if (!key) {
+      if (!key) {
+        return;
+      }
+
+      setContextFocus({
+        contactKey: key,
+        displayName: contact.displayName,
+        token: Date.now(),
+        type: "contact",
+      });
+      setActiveView("context");
+      navigateTo(`/contacts/${pathSegment(contact.id)}/context`);
+    },
+    [navigateTo],
+  );
+
+  const openConversationContext = useCallback(
+    (conversation: Conversation) => {
+      setContextFocus({
+        displayName: conversation.contact,
+        roomKey: conversationRoomKey(conversation),
+        token: Date.now(),
+        type: "conversation",
+      });
+      setActiveView("context");
+      navigateTo(`/conversations/${pathSegment(conversationRouteId(conversation))}/context`);
+    },
+    [navigateTo],
+  );
+
+  const openContactConversations = useCallback(
+    (contact: Contact) => {
+      setConversationFocus({
+        query:
+          contact.displayName ||
+          contact.phonePoints[0]?.value ||
+          contact.emailPoints[0]?.value ||
+          contact.id,
+        token: Date.now(),
+      });
+      setActiveView("conversations");
+      navigateTo(`/contacts/${pathSegment(contact.id)}/conversations`);
+    },
+    [navigateTo],
+  );
+
+  const openContact = useCallback(
+    (contactId: string) => {
+      navigateTo(`/contacts/${pathSegment(contactId)}`);
+    },
+    [navigateTo],
+  );
+
+  const openContactTopicsRoute = useCallback(
+    (contactId: string) => {
+      navigateTo(`/contacts/${pathSegment(contactId)}/topics`);
+    },
+    [navigateTo],
+  );
+
+  const openConversation = useCallback(
+    (conversationId: string) => {
+      navigateTo(`/conversations/${pathSegment(conversationId)}`);
+    },
+    [navigateTo],
+  );
+
+  useEffect(() => {
+    setActiveView(route.view);
+
+    if (route.contextFocus) {
+      setContextFocus(route.contextFocus);
+    }
+  }, [route]);
+
+  useEffect(() => {
+    if (route.contactConversationsId) {
+      const contact = contacts.find((item) => item.id === route.contactConversationsId);
+
+      setConversationFocus({
+        query:
+          contact?.displayName ||
+          contact?.phonePoints[0]?.value ||
+          contact?.emailPoints[0]?.value ||
+          route.contactConversationsId,
+        token: Date.now(),
+      });
+    }
+
+    if (route.contactContextId) {
+      const contact = contacts.find((item) => item.id === route.contactContextId);
+      const key = contact ? contactContextKey(contact) : route.contactContextId;
+
+      if (key) {
+        setContextFocus({
+          contactKey: key,
+          displayName: contact?.displayName ?? route.contactContextId,
+          token: Date.now(),
+          type: "contact",
+        });
+      }
+    }
+  }, [contacts, route.contactContextId, route.contactConversationsId]);
+
+  useEffect(() => {
+    if (!route.conversationContextId) {
       return;
     }
 
-    setContextFocus({
-      contactKey: key,
-      displayName: contact.displayName,
-      token: Date.now(),
-      type: "contact",
-    });
-    setActiveView("context");
-  }, []);
+    const conversation = conversations.find((item) => item.id === route.conversationContextId);
+    const roomKey = conversation ? conversationRoomKey(conversation) : route.conversationContextId;
 
-  const openConversationContext = useCallback((conversation: Conversation) => {
     setContextFocus({
-      displayName: conversation.contact,
-      roomKey: conversationRoomKey(conversation),
+      displayName: conversation?.contact ?? route.conversationContextId,
+      roomKey,
       token: Date.now(),
       type: "conversation",
     });
-    setActiveView("context");
-  }, []);
-
-  const openContactConversations = useCallback((contact: Contact) => {
-    setConversationFocus({
-      query:
-        contact.displayName ||
-        contact.phonePoints[0]?.value ||
-        contact.emailPoints[0]?.value ||
-        contact.id,
-      token: Date.now(),
-    });
-    setActiveView("conversations");
-  }, []);
+  }, [conversations, route.conversationContextId]);
 
   useEffect(() => {
     const savedMode = window.localStorage.getItem("commshub99:mode");
@@ -919,7 +1130,7 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
         <button
           className="brand brand-button"
           type="button"
-          onClick={() => setActiveView("overview")}
+          onClick={() => navigateView("overview")}
         >
           <span className="brand-mark">
             <Radio aria-hidden size={18} />
@@ -933,7 +1144,7 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
               aria-current={activeView === item.view ? "page" : undefined}
               className="nav-item"
               key={item.view}
-              onClick={() => setActiveView(item.view)}
+              onClick={() => navigateView(item.view)}
               title={item.label}
               type="button"
             >
@@ -993,7 +1204,7 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
             draftsCount={drafts.length}
             draftsLoading={draftsLoading}
             mode={mode}
-            onSelectView={setActiveView}
+            onSelectView={navigateView}
           />
         ) : null}
         {activeView === "conversations" ? (
@@ -1003,6 +1214,8 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
             focus={conversationFocus}
             loading={conversationsLoading}
             onOpenConversationContext={openConversationContext}
+            onSelectConversation={openConversation}
+            selectedConversationId={route.conversationId}
           />
         ) : null}
         {activeView === "contacts" ? (
@@ -1013,6 +1226,9 @@ export function AppShell({ currentUser }: { currentUser: PublicUser }) {
             loading={contactsLoading}
             onOpenContactContext={openContactContext}
             onOpenContactConversations={openContactConversations}
+            onOpenContactTopics={openContactTopicsRoute}
+            onSelectContact={openContact}
+            selectedContactId={route.contactId}
           />
         ) : null}
         {activeView === "approvals" ? (
@@ -1151,15 +1367,25 @@ function Conversations({
   focus,
   loading,
   onOpenConversationContext,
+  onSelectConversation,
+  selectedConversationId,
 }: {
   conversations: Conversation[];
   error: string | null;
   focus: ConversationFocus | null;
   loading: boolean;
   onOpenConversationContext: (conversation: Conversation) => void;
+  onSelectConversation: (conversationId: string) => void;
+  selectedConversationId: string | undefined;
 }) {
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (selectedConversationId) {
+      setSelectedId(selectedConversationId);
+    }
+  }, [selectedConversationId]);
 
   useEffect(() => {
     if (conversations.length === 0) {
@@ -1246,7 +1472,10 @@ function Conversations({
                 <button
                   aria-pressed={selectedConversation?.id === conversation.id}
                   className="conversation-row"
-                  onClick={() => setSelectedId(conversation.id)}
+                  onClick={() => {
+                    setSelectedId(conversation.id);
+                    onSelectConversation(conversation.id);
+                  }}
                   type="button"
                 >
                   <span className="conversation-row-top">
@@ -1337,6 +1566,9 @@ function Contacts({
   loading,
   onOpenContactContext,
   onOpenContactConversations,
+  onOpenContactTopics,
+  onSelectContact,
+  selectedContactId,
 }: {
   canWriteContacts: boolean;
   contacts: Contact[];
@@ -1344,6 +1576,9 @@ function Contacts({
   loading: boolean;
   onOpenContactContext: (contact: Contact) => void;
   onOpenContactConversations: (contact: Contact) => void;
+  onOpenContactTopics: (contactId: string) => void;
+  onSelectContact: (contactId: string) => void;
+  selectedContactId: string | undefined;
 }) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -1359,6 +1594,12 @@ function Contacts({
   useEffect(() => {
     setManagedContacts(contacts);
   }, [contacts]);
+
+  useEffect(() => {
+    if (selectedContactId) {
+      setSelectedId(selectedContactId);
+    }
+  }, [selectedContactId]);
 
   useEffect(() => {
     const savedTrackedIds = window.localStorage.getItem("commshub99:tracked-contacts");
@@ -1674,6 +1915,7 @@ function Contacts({
 
   function openContactTopics(contact: Contact) {
     setSelectedId(contact.id);
+    onOpenContactTopics(contact.id);
     window.requestAnimationFrame(() => {
       topicsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -1790,7 +2032,10 @@ function Contacts({
                   <button
                     aria-pressed={selectedContact?.id === contact.id}
                     className="contact-row"
-                    onClick={() => setSelectedId(contact.id)}
+                    onClick={() => {
+                      setSelectedId(contact.id);
+                      onSelectContact(contact.id);
+                    }}
                     type="button"
                   >
                     <ContactAvatar contact={contact} />
