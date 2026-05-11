@@ -1359,6 +1359,7 @@ tr:last-child td {
 
 .context-editor,
 .context-list,
+.context-settings,
 .context-suggestions {
   display: grid;
   gap: 12px;
@@ -1371,12 +1372,14 @@ tr:last-child td {
 
 .context-editor h3,
 .context-list h3,
+.context-settings h3,
 .context-suggestions h3 {
   margin: 0;
   font-size: 0.96rem;
 }
 
 .context-editor label,
+.context-settings label,
 .context-choice-row label {
   display: grid;
   gap: 5px;
@@ -1387,7 +1390,8 @@ tr:last-child td {
 
 .context-editor input,
 .context-editor select,
-.context-editor textarea {
+.context-editor textarea,
+.context-settings input {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);

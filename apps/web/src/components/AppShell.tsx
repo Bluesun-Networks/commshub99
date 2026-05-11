@@ -99,6 +99,8 @@ type ContextRecordView = {
   relationship: string;
   replyPosture: string;
   roomKey?: string;
+  signatureMode: string;
+  signatureValue: string;
   tenantId: string;
   tone: string;
   updatedAt: string;
@@ -122,6 +124,11 @@ type ContextDataView = {
   contactContexts: ContextRecordView[];
   conversationContexts: ContextRecordView[];
   harvestError: string | null;
+  settings: {
+    signature: string;
+    tenantId: string;
+    updatedAt: string;
+  };
   suggestions: ContextSuggestionView[];
   tenantId: string;
 };
@@ -200,6 +207,7 @@ const reviewWindows = [
 const contextRelationships = ["family", "friend", "professional", "service", "unknown"];
 const contextTones = ["polite", "warm", "direct", "terse", "avoid_rude"];
 const contextReplyPostures = ["do_not_reply", "reply_if_needed", "usually_reply", "always_reply"];
+const contextSignatureModes = ["inherit", "append", "override"];
 const personalDetailChoices = ["location", "health_updates", "daily_agenda", "family_updates"];
 
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
@@ -2444,6 +2452,7 @@ function Approvals({
           draft.displaySourceMessageAt,
           draft.sourceRowid,
           draft.context?.replyPosture,
+          draft.context?.signature,
           draft.context?.tone,
           draft.context?.contextVersionIds.join(" "),
         ]
@@ -2721,6 +2730,10 @@ function Approvals({
                         <dt>Versions</dt>
                         <dd>{draft.context.contextVersionIds.join(", ") || "Unversioned"}</dd>
                       </div>
+                      <div>
+                        <dt>Signature</dt>
+                        <dd>{draft.context.signature || "None"}</dd>
+                      </div>
                     </dl>
                     {draft.context.customPrompt || draft.context.notes ? (
                       <p className="draft-reasoning">
@@ -2940,6 +2953,8 @@ function defaultContextDraft(scope: "contact" | "conversation"): ContextRecordVi
     notes: "",
     relationship: "unknown",
     replyPosture: "reply_if_needed",
+    signatureMode: "inherit",
+    signatureValue: "",
     tenantId: "",
     tone: "warm",
     updatedAt: "",
@@ -2975,8 +2990,13 @@ function ContextView({
   const [contactDraft, setContactDraft] = useState(defaultContextDraft("contact"));
   const [conversationDraft, setConversationDraft] = useState(defaultContextDraft("conversation"));
   const [hiddenSuggestions, setHiddenSuggestions] = useState<Set<string>>(new Set());
+  const [settingsSignature, setSettingsSignature] = useState("");
   const contactEditorRef = useRef<HTMLDivElement>(null);
   const conversationEditorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSettingsSignature(data?.settings.signature ?? "");
+  }, [data?.settings.signature]);
 
   function suggestionKey(suggestion: ContextSuggestionView) {
     return `${suggestion.contextType}:${suggestion.targetKey}`;
@@ -3059,6 +3079,29 @@ function ContextView({
       );
     } catch (saveError) {
       setActionError(saveError instanceof Error ? saveError.message : "Could not save context");
+    }
+  }
+
+  async function saveSettings() {
+    setActionError(null);
+    setActionNote(null);
+
+    try {
+      const response = await fetchWithTimeout("/api/context", {
+        body: JSON.stringify({ scope: "settings", signature: settingsSignature }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not save signature");
+      }
+
+      await onRefresh();
+      setActionNote("Saved global signature.");
+    } catch (saveError) {
+      setActionError(saveError instanceof Error ? saveError.message : "Could not save signature");
     }
   }
 
@@ -3149,6 +3192,25 @@ function ContextView({
       ) : null}
       {!error && !loading ? (
         <>
+          <section className="context-settings" aria-labelledby="context-settings-heading">
+            <h3 id="context-settings-heading">Global Signature</h3>
+            <label>
+              <span>Default signature</span>
+              <input
+                onChange={(event) => setSettingsSignature(event.target.value)}
+                placeholder="Example: 🌗"
+                value={settingsSignature}
+              />
+            </label>
+            <button
+              className="action-button"
+              disabled={!canEditContext}
+              onClick={() => void saveSettings()}
+              type="button"
+            >
+              Save signature
+            </button>
+          </section>
           <div className="context-editor-grid">
             <div ref={contactEditorRef}>
               <ContextEditor
@@ -3341,6 +3403,27 @@ function ContextEditor({
               <option key={choice}>{choice}</option>
             ))}
           </select>
+        </label>
+      </div>
+      <div className="context-choice-row">
+        <label>
+          <span>Signature mode</span>
+          <select
+            onChange={(event) => onChange({ ...draft, signatureMode: event.target.value })}
+            value={draft.signatureMode}
+          >
+            {contextSignatureModes.map((choice) => (
+              <option key={choice}>{choice}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Signature value</span>
+          <input
+            onChange={(event) => onChange({ ...draft, signatureValue: event.target.value })}
+            placeholder="Append or override mark"
+            value={draft.signatureValue}
+          />
         </label>
       </div>
       <fieldset className="context-detail-options">

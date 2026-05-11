@@ -23,6 +23,20 @@ export const contextTypes = ["contact", "conversation"] as const;
 export const contextHistoryOperations = ["create", "update", "delete", "rollback"] as const;
 export const contextHistorySources = ["human", "harvest", "import", "system"] as const;
 export const contextReviewStatuses = ["pending", "approved", "rejected", "superseded"] as const;
+export const contextSignatureModes = ["inherit", "append", "override"] as const;
+
+export const tenantSettings = sqliteTable("tenant_settings", {
+  tenantId: text("tenant_id")
+    .primaryKey()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  signature: text("signature").notNull().default(""),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
 
 export const contactContexts = sqliteTable(
   "contact_contexts",
@@ -42,6 +56,10 @@ export const contactContexts = sqliteTable(
       .default("reply_if_needed"),
     customPrompt: text("custom_prompt").notNull().default(""),
     notes: text("notes").notNull().default(""),
+    signatureMode: text("signature_mode", { enum: contextSignatureModes })
+      .notNull()
+      .default("inherit"),
+    signatureValue: text("signature_value").notNull().default(""),
     allowedPersonalDetailsJson: text("allowed_personal_details_json").notNull().default("[]"),
     customPersonalDetailsJson: text("custom_personal_details_json").notNull().default("[]"),
     createdAt: integer("created_at", { mode: "timestamp" })
@@ -76,6 +94,10 @@ export const conversationContexts = sqliteTable(
       .default("reply_if_needed"),
     customPrompt: text("custom_prompt").notNull().default(""),
     notes: text("notes").notNull().default(""),
+    signatureMode: text("signature_mode", { enum: contextSignatureModes })
+      .notNull()
+      .default("inherit"),
+    signatureValue: text("signature_value").notNull().default(""),
     allowedPersonalDetailsJson: text("allowed_personal_details_json").notNull().default("[]"),
     customPersonalDetailsJson: text("custom_personal_details_json").notNull().default("[]"),
     createdAt: integer("created_at", { mode: "timestamp" })
@@ -127,3 +149,4 @@ export const contextVersions = sqliteTable(
 export type ContactContext = typeof contactContexts.$inferSelect;
 export type ConversationContext = typeof conversationContexts.$inferSelect;
 export type ContextVersion = typeof contextVersions.$inferSelect;
+export type TenantSettings = typeof tenantSettings.$inferSelect;

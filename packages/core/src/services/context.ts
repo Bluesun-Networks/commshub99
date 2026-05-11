@@ -5,6 +5,7 @@ import type {
   ContactContext,
   ContextProfile,
   ContextReplyPosture,
+  ContextSignatureMode,
   ConversationContext,
   DraftContextSnapshot,
   PersonalDetailBoundary,
@@ -28,8 +29,10 @@ export interface ResolvedContextBundle {
     customPrompt: string;
     notes: string;
     replyPosture: ContextReplyPosture;
+    signature: string;
     tone: ContextProfile["tone"];
   };
+  globalSignature: string;
   tenantId: string;
 }
 
@@ -77,6 +80,8 @@ function rowToContactContext(row: Record<string, unknown>): ContactContext {
     notes: String(row.notes ?? ""),
     relationship: row.relationship as ContactContext["relationship"],
     replyPosture: row.reply_posture as ContextReplyPosture,
+    signatureMode: (row.signature_mode ?? "inherit") as ContextSignatureMode,
+    signatureValue: String(row.signature_value ?? ""),
     scope: "contact",
     tenantId: String(row.tenant_id),
     tone: row.tone as ContactContext["tone"],
@@ -98,6 +103,8 @@ function rowToConversationContext(row: Record<string, unknown>): ConversationCon
     relationship: row.relationship as ConversationContext["relationship"],
     replyPosture: row.reply_posture as ContextReplyPosture,
     roomKey: String(row.room_key),
+    signatureMode: (row.signature_mode ?? "inherit") as ContextSignatureMode,
+    signatureValue: String(row.signature_value ?? ""),
     scope: "conversation",
     tenantId: String(row.tenant_id),
     tone: row.tone as ConversationContext["tone"],
@@ -138,6 +145,34 @@ function joinedText(contexts: ContextProfile[], key: "customPrompt" | "notes") {
     .map((context) => context[key].trim())
     .filter(Boolean)
     .join("\n\n");
+}
+
+function globalSignature(tenantId: string, sqlite: ReturnType<typeof createDbClient>["sqlite"]) {
+  try {
+    const row = sqlite
+      .prepare("SELECT signature FROM tenant_settings WHERE tenant_id = ?")
+      .get(tenantId) as { signature?: string } | undefined;
+
+    return row?.signature ?? "";
+  } catch (error) {
+    if (error instanceof Error && /no such table: tenant_settings/.test(error.message)) {
+      return "";
+    }
+
+    throw error;
+  }
+}
+
+function effectiveSignature(signature: string, contexts: ContextProfile[]) {
+  return contexts.reduce((current, context) => {
+    const value = context.signatureValue.trim();
+
+    if (!value || context.signatureMode === "inherit") {
+      return current;
+    }
+
+    return context.signatureMode === "override" ? value : `${current}${value}`;
+  }, signature);
 }
 
 function latestVersionIds(tenantId: string, contexts: ContextProfile[]) {
@@ -189,6 +224,7 @@ export function contextBundleToDraftSnapshot(
     customPrompt: bundle.effective.customPrompt,
     notes: bundle.effective.notes,
     replyPosture: bundle.effective.replyPosture,
+    signature: bundle.effective.signature,
     source,
     tenantId: bundle.tenantId,
     tone: bundle.effective.tone,
@@ -235,6 +271,7 @@ export class ContextService {
         ...(conversationContext ? [conversationContext] : []),
       ];
       const contextProfileIds = contexts.map((context) => context.id);
+      const signature = globalSignature(input.tenantId, client.sqlite);
 
       return {
         contactContexts,
@@ -251,8 +288,10 @@ export class ContextService {
           customPrompt: joinedText(contexts, "customPrompt"),
           notes: joinedText(contexts, "notes"),
           replyPosture: mostRestrictiveReplyPosture(contexts),
+          signature: effectiveSignature(signature, contexts),
           tone: effectiveTone(contexts),
         },
+        globalSignature: signature,
         tenantId: input.tenantId,
       };
     } finally {

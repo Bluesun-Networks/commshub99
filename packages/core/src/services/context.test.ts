@@ -27,6 +27,8 @@ beforeEach(() => {
         reply_posture text DEFAULT 'reply_if_needed' NOT NULL,
         custom_prompt text DEFAULT '' NOT NULL,
         notes text DEFAULT '' NOT NULL,
+        signature_mode text DEFAULT 'inherit' NOT NULL,
+        signature_value text DEFAULT '' NOT NULL,
         allowed_personal_details_json text DEFAULT '[]' NOT NULL,
         custom_personal_details_json text DEFAULT '[]' NOT NULL,
         created_at integer NOT NULL,
@@ -43,11 +45,21 @@ beforeEach(() => {
         reply_posture text DEFAULT 'reply_if_needed' NOT NULL,
         custom_prompt text DEFAULT '' NOT NULL,
         notes text DEFAULT '' NOT NULL,
+        signature_mode text DEFAULT 'inherit' NOT NULL,
+        signature_value text DEFAULT '' NOT NULL,
         allowed_personal_details_json text DEFAULT '[]' NOT NULL,
         custom_personal_details_json text DEFAULT '[]' NOT NULL,
         created_at integer NOT NULL,
         updated_at integer NOT NULL
       );
+      CREATE TABLE tenant_settings (
+        tenant_id text PRIMARY KEY NOT NULL,
+        signature text DEFAULT '' NOT NULL,
+        created_at integer NOT NULL,
+        updated_at integer NOT NULL
+      );
+      INSERT INTO tenant_settings (tenant_id, signature, created_at, updated_at)
+        VALUES ('tenant-1', 'moon', 1, 1);
       INSERT INTO contact_contexts (
         id,
         tenant_id,
@@ -58,6 +70,8 @@ beforeEach(() => {
         reply_posture,
         custom_prompt,
         notes,
+        signature_mode,
+        signature_value,
         allowed_personal_details_json,
         custom_personal_details_json,
         created_at,
@@ -73,6 +87,8 @@ beforeEach(() => {
           'do_not_reply',
           'Never answer with commitments.',
           'Sensitive contact.',
+          'append',
+          '-levi',
           '["location","health_updates"]',
           '["school pickup"]',
           1,
@@ -87,6 +103,8 @@ beforeEach(() => {
           'warm',
           'usually_reply',
           '',
+          '',
+          'inherit',
           '',
           '["location"]',
           '["school pickup"]',
@@ -104,6 +122,8 @@ beforeEach(() => {
         reply_posture,
         custom_prompt,
         notes,
+        signature_mode,
+        signature_value,
         allowed_personal_details_json,
         custom_personal_details_json,
         created_at,
@@ -119,6 +139,8 @@ beforeEach(() => {
         'always_reply',
         'Keep the group concise.',
         'Room context note.',
+        'append',
+        '-room',
         '["location","daily_agenda"]',
         '["school pickup"]',
         1,
@@ -164,6 +186,7 @@ describe("ContextService", () => {
       allowedPersonalDetails: ["location"],
       customPersonalDetails: ["school pickup"],
       replyPosture: "do_not_reply",
+      signature: "moon-levi-room",
       tone: "avoid_rude",
     });
     expect(bundle.effective.customPrompt).toContain("Never answer with commitments.");

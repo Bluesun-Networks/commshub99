@@ -188,6 +188,7 @@ function writeOutboxContent(content: string) {
     "context_version_ids",
     "context_tone",
     "context_reply_posture",
+    "context_signature",
     "context_allowed_personal_details",
     "context_custom_personal_details",
   ]) {

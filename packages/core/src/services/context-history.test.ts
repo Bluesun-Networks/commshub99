@@ -42,6 +42,8 @@ beforeEach(() => {
         reply_posture text DEFAULT 'reply_if_needed' NOT NULL,
         custom_prompt text DEFAULT '' NOT NULL,
         notes text DEFAULT '' NOT NULL,
+        signature_mode text DEFAULT 'inherit' NOT NULL,
+        signature_value text DEFAULT '' NOT NULL,
         allowed_personal_details_json text DEFAULT '[]' NOT NULL,
         custom_personal_details_json text DEFAULT '[]' NOT NULL,
         created_at integer NOT NULL,
@@ -75,6 +77,8 @@ beforeEach(() => {
         reply_posture,
         custom_prompt,
         notes,
+        signature_mode,
+        signature_value,
         allowed_personal_details_json,
         custom_personal_details_json,
         created_at,
@@ -89,6 +93,8 @@ beforeEach(() => {
         'usually_reply',
         '',
         'Old note',
+        'append',
+        '-levi',
         '["location"]',
         '[]',
         1,
@@ -186,7 +192,11 @@ describe("ContextHistoryService", () => {
 
     const rollback = service.rollback("version-1", "user-1");
 
-    expect(contactContext()).toMatchObject({ notes: "Old note" });
+    expect(contactContext()).toMatchObject({
+      notes: "Old note",
+      signature_mode: "append",
+      signature_value: "-levi",
+    });
     expect(service.get("version-1")).toMatchObject({ reviewStatus: "superseded" });
     expect(rollback).toMatchObject({
       actorUserId: "user-1",

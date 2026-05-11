@@ -121,6 +121,9 @@ export const personalDetailBoundarySchema = z.enum([
 ]);
 export type PersonalDetailBoundary = z.infer<typeof personalDetailBoundarySchema>;
 
+export const contextSignatureModeSchema = z.enum(["inherit", "append", "override"]);
+export type ContextSignatureMode = z.infer<typeof contextSignatureModeSchema>;
+
 export const contextProfileSchema = z.object({
   allowedPersonalDetails: z.array(personalDetailBoundarySchema),
   customPersonalDetails: z.array(z.string()),
@@ -130,6 +133,8 @@ export const contextProfileSchema = z.object({
   notes: z.string(),
   relationship: contextRelationshipCategorySchema,
   replyPosture: contextReplyPostureSchema,
+  signatureMode: contextSignatureModeSchema,
+  signatureValue: z.string(),
   tenantId: z.string(),
   tone: contextToneSchema,
   updatedAt: z.string(),
@@ -185,6 +190,7 @@ export const draftContextSnapshotSchema = z.object({
   customPrompt: z.string(),
   notes: z.string(),
   replyPosture: contextReplyPostureSchema,
+  signature: z.string(),
   source: z.enum(["draft_metadata", "live"]),
   tenantId: z.string(),
   tone: contextToneSchema,

@@ -24,7 +24,14 @@ type ContextPayload = {
   replyPosture?: string;
   roomKey?: string;
   scope?: ContextScope;
+  signatureMode?: string;
+  signatureValue?: string;
   tone?: string;
+};
+
+type SettingsPayload = {
+  scope: "settings";
+  signature?: string;
 };
 
 function defaultTenantId(userId: string) {
@@ -122,9 +129,61 @@ function normalizeRow(row: Record<string, unknown>) {
     relationship: String(row.relationship ?? "unknown"),
     replyPosture: String(row.reply_posture ?? "reply_if_needed"),
     roomKey: row.room_key ? String(row.room_key) : undefined,
+    signatureMode: String(row.signature_mode ?? "inherit"),
+    signatureValue: String(row.signature_value ?? ""),
     tenantId: String(row.tenant_id),
     tone: String(row.tone ?? "warm"),
     updatedAt: new Date(Number(row.updated_at ?? 0)).toISOString(),
+  };
+}
+
+function settingsRow(tenantId: string) {
+  const client = createDbClient();
+
+  try {
+    return client.sqlite
+      .prepare("SELECT * FROM tenant_settings WHERE tenant_id = ?")
+      .get(tenantId) as Record<string, unknown> | undefined;
+  } finally {
+    client.close();
+  }
+}
+
+function normalizeSettings(row: Record<string, unknown> | undefined, tenantId: string) {
+  return {
+    signature: String(row?.signature ?? ""),
+    tenantId,
+    updatedAt: new Date(Number(row?.updated_at ?? 0)).toISOString(),
+  };
+}
+
+function saveSettings(tenantId: string, payload: SettingsPayload) {
+  const before = settingsRow(tenantId) ?? null;
+  const now = Date.now();
+  const client = createDbClient();
+
+  try {
+    client.sqlite
+      .prepare(
+        `INSERT INTO tenant_settings (
+          tenant_id,
+          signature,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?)
+        ON CONFLICT(tenant_id) DO UPDATE SET
+          signature = excluded.signature,
+          updated_at = excluded.updated_at`,
+      )
+      .run(tenantId, payload.signature ?? "", now, now);
+  } finally {
+    client.close();
+  }
+
+  return {
+    after: settingsRow(tenantId) ?? null,
+    before,
+    id: tenantId,
   };
 }
 
@@ -153,11 +212,13 @@ function saveContactContext(tenantId: string, payload: ContextPayload) {
           reply_posture,
           custom_prompt,
           notes,
+          signature_mode,
+          signature_value,
           allowed_personal_details_json,
           custom_personal_details_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, contact_key) DO UPDATE SET
           display_name = excluded.display_name,
           relationship = excluded.relationship,
@@ -165,6 +226,8 @@ function saveContactContext(tenantId: string, payload: ContextPayload) {
           reply_posture = excluded.reply_posture,
           custom_prompt = excluded.custom_prompt,
           notes = excluded.notes,
+          signature_mode = excluded.signature_mode,
+          signature_value = excluded.signature_value,
           allowed_personal_details_json = excluded.allowed_personal_details_json,
           custom_personal_details_json = excluded.custom_personal_details_json,
           updated_at = excluded.updated_at`,
@@ -179,6 +242,8 @@ function saveContactContext(tenantId: string, payload: ContextPayload) {
         payload.replyPosture ?? "reply_if_needed",
         payload.customPrompt ?? "",
         payload.notes ?? "",
+        payload.signatureMode ?? "inherit",
+        payload.signatureValue ?? "",
         jsonArray(payload.allowedPersonalDetails),
         jsonArray(payload.customPersonalDetails),
         now,
@@ -221,11 +286,13 @@ function saveConversationContext(tenantId: string, payload: ContextPayload) {
           reply_posture,
           custom_prompt,
           notes,
+          signature_mode,
+          signature_value,
           allowed_personal_details_json,
           custom_personal_details_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, channel_id, room_key) DO UPDATE SET
           display_name = excluded.display_name,
           relationship = excluded.relationship,
@@ -233,6 +300,8 @@ function saveConversationContext(tenantId: string, payload: ContextPayload) {
           reply_posture = excluded.reply_posture,
           custom_prompt = excluded.custom_prompt,
           notes = excluded.notes,
+          signature_mode = excluded.signature_mode,
+          signature_value = excluded.signature_value,
           allowed_personal_details_json = excluded.allowed_personal_details_json,
           custom_personal_details_json = excluded.custom_personal_details_json,
           updated_at = excluded.updated_at`,
@@ -248,6 +317,8 @@ function saveConversationContext(tenantId: string, payload: ContextPayload) {
         payload.replyPosture ?? "reply_if_needed",
         payload.customPrompt ?? "",
         payload.notes ?? "",
+        payload.signatureMode ?? "inherit",
+        payload.signatureValue ?? "",
         jsonArray(payload.allowedPersonalDetails),
         jsonArray(payload.customPersonalDetails),
         now,
@@ -276,6 +347,7 @@ export async function GET(request: Request) {
     contactContexts: rows("contact_contexts", tenantId).map(normalizeRow),
     conversationContexts: rows("conversation_contexts", tenantId).map(normalizeRow),
     harvestError: harvest.error,
+    settings: normalizeSettings(settingsRow(tenantId), tenantId),
     suggestions: harvest.suggestions,
     tenantId,
   });
@@ -289,9 +361,17 @@ export async function POST(request: Request) {
   }
 
   const tenantId = defaultTenantId(auth.session.user.id);
-  const payload = (await request.json()) as ContextPayload;
+  const payload = (await request.json()) as ContextPayload | SettingsPayload;
 
   try {
+    if (payload.scope === "settings") {
+      const saved = saveSettings(tenantId, payload);
+
+      return NextResponse.json({
+        settings: normalizeSettings(saved.after ?? undefined, tenantId),
+      });
+    }
+
     const saved =
       payload.scope === "conversation"
         ? saveConversationContext(tenantId, payload)

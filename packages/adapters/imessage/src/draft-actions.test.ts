@@ -100,7 +100,10 @@ describe("iMessage draft actions", () => {
   });
 
   it("approves do_not_reply drafts with an explicit override", async () => {
-    writeDraft("draft-1", 'context_reply_posture: "do_not_reply"\ncontext_version_ids: "v1"\n');
+    writeDraft(
+      "draft-1",
+      'context_reply_posture: "do_not_reply"\ncontext_version_ids: "v1"\ncontext_signature: "moon-levi"\n',
+    );
 
     await approveImessageDraft("draft-1", { overrideContextSafeguards: true });
 
@@ -109,6 +112,7 @@ describe("iMessage draft actions", () => {
     expect(existsSync(draftPath())).toBe(false);
     expect(outbox).toContain('context_reply_posture: "do_not_reply"');
     expect(outbox).toContain('context_version_ids: "v1"');
+    expect(outbox).toContain('context_signature: "moon-levi"');
   });
 
   it("treats approve retry as complete when the outbox item already exists", async () => {

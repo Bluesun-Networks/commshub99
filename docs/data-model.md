@@ -129,6 +129,7 @@ Use the returned JSON to populate these draft frontmatter fields:
 - `context_version_ids` as a comma-separated list
 - `context_tone`
 - `context_reply_posture`
+- `context_signature`
 - `context_allowed_personal_details` as a comma-separated list
 - `context_custom_personal_details` as a comma-separated list
 
@@ -136,3 +137,8 @@ When those fields are present, commshub99 treats them as the context used at gen
 preserves them into the outbox file. When they are missing, the approvals view resolves the current
 live contact and conversation context so admins can still see the active rules that apply to the
 draft.
+
+Context signatures are resolved from a global tenant value plus contact and conversation context
+settings. Each context can inherit the current signature, append a suffix, or override it entirely;
+the resolved value is copied into draft metadata so approvals and sends preserve the exact context
+marker used for that draft.

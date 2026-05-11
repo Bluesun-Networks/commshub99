@@ -78,6 +78,7 @@ function contextFromMeta(meta: Map<string, string>, tenantId = ""): DraftContext
     replyPosture:
       (meta.get("context_reply_posture") as DraftContextSnapshot["replyPosture"] | undefined) ??
       "reply_if_needed",
+    signature: meta.get("context_signature") ?? "",
     source: "draft_metadata",
     tenantId: meta.get("context_tenant_id") ?? tenantId,
     tone: (meta.get("context_tone") as DraftContextSnapshot["tone"] | undefined) ?? "warm",
