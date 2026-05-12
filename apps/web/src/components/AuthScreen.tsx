@@ -6,6 +6,20 @@ import { useState } from "react";
 
 type AuthMode = "bootstrap" | "login";
 
+async function responseJson<T extends { error?: string }>(response: Response): Promise<T> {
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return (response.ok ? {} : { error: response.statusText }) as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return { error: response.ok ? "Invalid JSON response" : response.statusText } as T;
+  }
+}
+
 export function AuthScreen({ mode }: { mode: AuthMode }) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +39,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = await responseJson<{ error?: string }>(response);
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Authentication failed");

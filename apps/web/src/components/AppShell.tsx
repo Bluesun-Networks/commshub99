@@ -614,10 +614,10 @@ async function responseJson<T extends { error?: string }>(response: Response): P
 
 async function loadScheduledSends() {
   const response = await fetch("/api/imessage/schedules", { cache: "no-store" });
-  const payload = (await response.json()) as {
+  const payload = await responseJson<{
     error?: string;
     schedules?: ScheduledSendView[];
-  };
+  }>(response);
 
   if (!response.ok) {
     throw new Error(payload.error ?? "Could not load scheduled sends");
@@ -628,7 +628,7 @@ async function loadScheduledSends() {
 
 async function loadContextData() {
   const response = await fetch("/api/context", { cache: "no-store" });
-  const payload = (await response.json()) as ContextDataView & { error?: string };
+  const payload = await responseJson<ContextDataView & { error?: string }>(response);
 
   if (!response.ok) {
     throw new Error(payload.error ?? "Could not load context");
@@ -1009,14 +1009,14 @@ export function AppShell({
           loadScheduledSends(),
           loadContextData(),
         ]);
-        const conversationPayload = (await conversationResponse.json()) as {
+        const conversationPayload = await responseJson<{
           conversations?: Conversation[];
           error?: string;
-        };
-        const contactPayload = (await contactResponse.json()) as {
+        }>(conversationResponse);
+        const contactPayload = await responseJson<{
           contacts?: Contact[];
           error?: string;
-        };
+        }>(contactResponse);
 
         if (!ignore) {
           setDrafts(draftResponse);
@@ -1709,12 +1709,12 @@ function Contacts({
       },
       method: "PATCH",
     });
-    const payload = (await response.json()) as {
+    const payload = await responseJson<{
       contact?: {
         id: string;
       };
       error?: string;
-    };
+    }>(response);
 
     if (!response.ok) {
       throw new Error(payload.error ?? "Could not save contact");
@@ -2540,7 +2540,7 @@ function Approvals({
 
     try {
       const response = await action();
-      const payload = (await response.json()) as { error?: string };
+      const payload = await responseJson<{ error?: string }>(response);
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Draft action failed");
@@ -2623,7 +2623,7 @@ function Approvals({
           `/api/imessage/schedules/${encodeURIComponent(existingScheduleId)}`,
           { method: "DELETE" },
         );
-        const cancelPayload = (await cancelResponse.json()) as { error?: string };
+        const cancelPayload = await responseJson<{ error?: string }>(cancelResponse);
 
         if (!cancelResponse.ok) {
           throw new Error(cancelPayload.error ?? "Could not cancel existing schedule");
@@ -3320,7 +3320,7 @@ function ContextView({
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = await responseJson<{ error?: string }>(response);
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Could not save context");
@@ -3351,7 +3351,7 @@ function ContextView({
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = await responseJson<{ error?: string }>(response);
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Could not save signature");
