@@ -39,6 +39,7 @@ import {
   X,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -216,6 +217,56 @@ function readPathSegment(value: string | undefined) {
 
 function viewPath(view: View) {
   return view === "overview" ? "/overview" : `/${view}`;
+}
+
+function contactPath(contactId: string) {
+  return `/contacts/${pathSegment(contactId)}`;
+}
+
+function contactContextPath(contactId: string) {
+  return `${contactPath(contactId)}/context`;
+}
+
+function contactConversationsPath(contactId: string) {
+  return `${contactPath(contactId)}/conversations`;
+}
+
+function conversationPath(conversationId: string) {
+  return `/conversations/${pathSegment(conversationId)}`;
+}
+
+function conversationContextPath(conversationId: string) {
+  return `${conversationPath(conversationId)}/context`;
+}
+
+function contactContextRecordPath(contactKey: string) {
+  return `/context/contact/${pathSegment(contactKey)}`;
+}
+
+function conversationContextRecordPath(roomKey: string) {
+  return `/context/conversation/${pathSegment(roomKey)}`;
+}
+
+function EntityLink({
+  children,
+  className = "",
+  href,
+  title,
+}: {
+  children: ReactNode;
+  className?: string;
+  href: string;
+  title?: string;
+}) {
+  return (
+    <Link
+      className={className ? `entity-link ${className}` : "entity-link"}
+      href={href}
+      title={title}
+    >
+      {children}
+    </Link>
+  );
 }
 
 function routeFromPath(pathname: string): RouteState {
@@ -857,7 +908,7 @@ export function AppShell({
         type: "contact",
       });
       setActiveView("context");
-      navigateTo(`/contacts/${pathSegment(contact.id)}/context`);
+      navigateTo(contactContextPath(contact.id));
     },
     [navigateTo],
   );
@@ -871,7 +922,7 @@ export function AppShell({
         type: "conversation",
       });
       setActiveView("context");
-      navigateTo(`/conversations/${pathSegment(conversationRouteId(conversation))}/context`);
+      navigateTo(conversationContextPath(conversationRouteId(conversation)));
     },
     [navigateTo],
   );
@@ -887,28 +938,28 @@ export function AppShell({
         token: Date.now(),
       });
       setActiveView("conversations");
-      navigateTo(`/contacts/${pathSegment(contact.id)}/conversations`);
+      navigateTo(contactConversationsPath(contact.id));
     },
     [navigateTo],
   );
 
   const openContact = useCallback(
     (contactId: string) => {
-      navigateTo(`/contacts/${pathSegment(contactId)}`);
+      navigateTo(contactPath(contactId));
     },
     [navigateTo],
   );
 
   const openContactTopicsRoute = useCallback(
     (contactId: string) => {
-      navigateTo(`/contacts/${pathSegment(contactId)}/topics`);
+      navigateTo(`${contactPath(contactId)}/topics`);
     },
     [navigateTo],
   );
 
   const openConversation = useCallback(
     (conversationId: string) => {
-      navigateTo(`/conversations/${pathSegment(conversationId)}`);
+      navigateTo(conversationPath(conversationId));
     },
     [navigateTo],
   );
@@ -1523,7 +1574,15 @@ function Conversations({
               <>
                 <div className="conversation-detail-header">
                   <span>
-                    <strong>{selectedConversation.contact}</strong>
+                    <strong>
+                      {selectedConversation.linkedContact ? (
+                        <EntityLink href={contactPath(selectedConversation.linkedContact.id)}>
+                          {selectedConversation.contact}
+                        </EntityLink>
+                      ) : (
+                        selectedConversation.contact
+                      )}
+                    </strong>
                     <span>
                       {selectedConversation.channel} · {selectedConversation.handle} ·{" "}
                       {selectedConversation.messageCount} messages
@@ -1532,7 +1591,10 @@ function Conversations({
                   <div className="detail-actions">
                     {selectedConversation.linkedContact ? (
                       <span className="linked-contact-pill">
-                        Linked to {selectedConversation.linkedContact.name}
+                        Linked to{" "}
+                        <EntityLink href={contactPath(selectedConversation.linkedContact.id)}>
+                          {selectedConversation.linkedContact.name}
+                        </EntityLink>
                       </span>
                     ) : (
                       <span className="linked-contact-pill">Needs contact</span>
@@ -2244,7 +2306,15 @@ function Contacts({
                 <div className="contact-facts">
                   <div>
                     <span>Linked conversations</span>
-                    <strong>{activeContact.conversationCount}</strong>
+                    <strong>
+                      {activeContact.conversationCount > 0 ? (
+                        <EntityLink href={contactConversationsPath(activeContact.id)}>
+                          {activeContact.conversationCount}
+                        </EntityLink>
+                      ) : (
+                        activeContact.conversationCount
+                      )}
+                    </strong>
                   </div>
                   <div>
                     <span>Updated</span>
@@ -2452,7 +2522,15 @@ function Contacts({
                       <MessageCircle aria-hidden size={18} />
                       <span>
                         Conversation links
-                        <strong>{activeContact.conversationCount}</strong>
+                        <strong>
+                          {activeContact.conversationCount > 0 ? (
+                            <EntityLink href={contactConversationsPath(activeContact.id)}>
+                              {activeContact.conversationCount}
+                            </EntityLink>
+                          ) : (
+                            activeContact.conversationCount
+                          )}
+                        </strong>
                       </span>
                     </div>
                     <div>
@@ -2490,6 +2568,55 @@ function Contacts({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function contextRecordHref(record: ContextRecordView) {
+  if (record.contactKey) {
+    return contactContextRecordPath(record.contactKey);
+  }
+
+  if (record.roomKey) {
+    return conversationContextRecordPath(record.roomKey);
+  }
+
+  return "/context";
+}
+
+function contextRecordLabel(record: ContextRecordView) {
+  return record.displayName || record.contactKey || record.roomKey || shortIdentifier(record.id);
+}
+
+function ContextProfileLinks({
+  ids,
+  recordsById,
+}: {
+  ids: Array<string | null | undefined>;
+  recordsById: Map<string, ContextRecordView>;
+}) {
+  const resolvedIds = ids.filter((id): id is string => !!id);
+
+  if (resolvedIds.length === 0) {
+    return "None";
+  }
+
+  return (
+    <>
+      {resolvedIds.map((id, index) => {
+        const record = recordsById.get(id);
+
+        return (
+          <span className="entity-link-fragment" key={id}>
+            {index > 0 ? ", " : null}
+            {record ? (
+              <EntityLink href={contextRecordHref(record)}>{contextRecordLabel(record)}</EntityLink>
+            ) : (
+              shortIdentifier(id)
+            )}
+          </span>
+        );
+      })}
+    </>
   );
 }
 
@@ -2576,18 +2703,18 @@ function Approvals({
 
     return grouped;
   }, [schedules]);
-  const contextNameById = useMemo(() => {
-    const names = new Map<string, string>();
+  const contextRecordById = useMemo(() => {
+    const records = new Map<string, ContextRecordView>();
 
     for (const record of contextData?.contactContexts ?? []) {
-      names.set(record.id, record.displayName || record.contactKey || shortIdentifier(record.id));
+      records.set(record.id, record);
     }
 
     for (const record of contextData?.conversationContexts ?? []) {
-      names.set(record.id, record.displayName || record.roomKey || shortIdentifier(record.id));
+      records.set(record.id, record);
     }
 
-    return names;
+    return records;
   }, [contextData]);
 
   async function runDraftAction(uuid: string, action: () => Promise<Response>) {
@@ -2954,7 +3081,19 @@ function Approvals({
                 ) : null}
                 <div className="draft-card-top">
                   <span>
-                    <strong>{recipient.name}</strong>
+                    <strong>
+                      {recipientContact ? (
+                        <EntityLink href={contactPath(recipientContact.id)}>
+                          {recipient.name}
+                        </EntityLink>
+                      ) : recipientConversation ? (
+                        <EntityLink href={conversationPath(recipientConversation.id)}>
+                          {recipient.name}
+                        </EntityLink>
+                      ) : (
+                        recipient.name
+                      )}
+                    </strong>
                     <span>
                       {recipient.detail ? `${recipient.detail} · ` : ""}
                       {draft.displayCreatedAt}
@@ -2979,6 +3118,15 @@ function Approvals({
                 </div>
                 <div className="primitive-actions">
                   {recipientConversation ? (
+                    <EntityLink
+                      className="ghost-button entity-button-link"
+                      href={conversationPath(recipientConversation.id)}
+                    >
+                      <MessageCircle aria-hidden size={16} />
+                      Conversation
+                    </EntityLink>
+                  ) : null}
+                  {recipientConversation ? (
                     <button
                       className="ghost-button"
                       onClick={() => onOpenConversationContext(recipientConversation)}
@@ -2987,6 +3135,15 @@ function Approvals({
                       <Tag aria-hidden size={16} />
                       Conversation context
                     </button>
+                  ) : null}
+                  {recipientContact ? (
+                    <EntityLink
+                      className="ghost-button entity-button-link"
+                      href={contactPath(recipientContact.id)}
+                    >
+                      <UsersRound aria-hidden size={16} />
+                      Contact
+                    </EntityLink>
                   ) : null}
                   {recipientContact ? (
                     <button
@@ -3003,7 +3160,15 @@ function Approvals({
                 <dl className="draft-meta">
                   <div>
                     <dt>Chat</dt>
-                    <dd>{draft.chatId}</dd>
+                    <dd>
+                      {recipientConversation ? (
+                        <EntityLink href={conversationPath(recipientConversation.id)}>
+                          {draft.chatId}
+                        </EntityLink>
+                      ) : (
+                        draft.chatId
+                      )}
+                    </dd>
                   </div>
                   <div>
                     <dt>Source</dt>
@@ -3036,10 +3201,13 @@ function Approvals({
                       <div>
                         <dt>Profiles</dt>
                         <dd>
-                          {[...draft.context.contactContextIds, draft.context.conversationContextId]
-                            .filter((id): id is string => !!id)
-                            .map((id) => contextNameById.get(id) ?? shortIdentifier(id))
-                            .join(", ") || "None"}
+                          <ContextProfileLinks
+                            ids={[
+                              ...draft.context.contactContextIds,
+                              draft.context.conversationContextId,
+                            ]}
+                            recordsById={contextRecordById}
+                          />
                         </dd>
                       </div>
                       <div>
@@ -3355,6 +3523,35 @@ function ContextView({
     [conversationDraft.roomKey, conversations],
   );
 
+  const contactByContextKey = useCallback(
+    (contactKey: string | undefined) => {
+      const normalizedKey = normalizeIdentifier(contactKey ?? "") || contactKey;
+
+      return contacts.find((contact) =>
+        contactContextKeyOptions(contact).includes(normalizedKey ?? ""),
+      );
+    },
+    [contacts],
+  );
+  const conversationByRoomKey = useCallback(
+    (roomKey: string | undefined) =>
+      conversations.find((conversation) => conversationRoomKey(conversation) === roomKey),
+    [conversations],
+  );
+
+  function suggestionRelatedLink(suggestion: ContextSuggestionView) {
+    if (suggestion.contextType === "contact") {
+      const contact = contactByContextKey(suggestion.targetKey);
+
+      return contact ? { href: contactPath(contact.id), label: "Contact" } : null;
+    }
+
+    const roomKey = suggestion.targetKey.replace(/^imessage:/, "");
+    const conversation = conversationByRoomKey(roomKey);
+
+    return conversation ? { href: conversationPath(conversation.id), label: "Conversation" } : null;
+  }
+
   useEffect(() => {
     setSettingsSignature(data?.settings.signature ?? "");
   }, [data?.settings.signature]);
@@ -3636,7 +3833,13 @@ function ContextView({
                 <UserRoundCog aria-hidden size={22} />
                 <span>
                   <strong>
-                    {selectedContact?.displayName || contactDraft.displayName || "Pick a contact"}
+                    {selectedContact ? (
+                      <EntityLink href={contactPath(selectedContact.id)}>
+                        {selectedContact.displayName}
+                      </EntityLink>
+                    ) : (
+                      contactDraft.displayName || "Pick a contact"
+                    )}
                   </strong>
                   <span>
                     {contactDraft.contactKey
@@ -3700,6 +3903,7 @@ function ContextView({
                 onSave={() => void saveContext("contact", contactDraft)}
                 onToggleDetail={(detail) => toggleDetail(contactDraft, setContactDraft, detail)}
                 linkedName={selectedContact?.displayName}
+                linkedHref={selectedContact ? contactPath(selectedContact.id) : undefined}
                 title="Contact Defaults"
               />
             </div>
@@ -3715,6 +3919,9 @@ function ContextView({
                   toggleDetail(conversationDraft, setConversationDraft, detail)
                 }
                 linkedName={selectedConversation?.contact}
+                linkedHref={
+                  selectedConversation ? conversationPath(selectedConversation.id) : undefined
+                }
                 title="Conversation Override"
               />
             </div>
@@ -3723,6 +3930,11 @@ function ContextView({
             <ContextList
               records={data?.contactContexts ?? []}
               title="Saved Contacts"
+              relatedLinkFor={(record) => {
+                const contact = contactByContextKey(record.contactKey);
+
+                return contact ? { href: contactPath(contact.id), label: "Contact" } : null;
+              }}
               onEdit={(record) => {
                 setContactDraft(record);
                 setActionNote(`Loaded ${record.displayName || record.contactKey}.`);
@@ -3732,6 +3944,13 @@ function ContextView({
             <ContextList
               records={data?.conversationContexts ?? []}
               title="Saved Rooms"
+              relatedLinkFor={(record) => {
+                const conversation = conversationByRoomKey(record.roomKey);
+
+                return conversation
+                  ? { href: conversationPath(conversation.id), label: "Conversation" }
+                  : null;
+              }}
               onEdit={(record) => {
                 setConversationDraft(record);
                 setActionNote(`Loaded ${record.displayName || record.roomKey}.`);
@@ -3748,63 +3967,83 @@ function ContextView({
               <p className="muted-line">No harvest suggestions are visible right now.</p>
             ) : (
               <div className="draft-grid">
-                {suggestions.slice(0, 8).map((suggestion) => (
-                  <article className="context-suggestion-card" key={suggestion.targetKey}>
-                    <div className="draft-card-top">
-                      <span>
-                        <strong>{suggestion.payload.displayName}</strong>
+                {suggestions.slice(0, 8).map((suggestion) => {
+                  const relatedLink = suggestionRelatedLink(suggestion);
+
+                  return (
+                    <article className="context-suggestion-card" key={suggestion.targetKey}>
+                      <div className="draft-card-top">
                         <span>
-                          {suggestion.contextType} · confidence{" "}
-                          {Math.round(suggestion.confidence * 100)}%
+                          <strong>
+                            {relatedLink ? (
+                              <EntityLink href={relatedLink.href}>
+                                {suggestion.payload.displayName}
+                              </EntityLink>
+                            ) : (
+                              suggestion.payload.displayName
+                            )}
+                          </strong>
+                          <span>
+                            {suggestion.contextType} · confidence{" "}
+                            {Math.round(suggestion.confidence * 100)}%
+                          </span>
                         </span>
-                      </span>
-                      <StatusBadge tone="waiting">review</StatusBadge>
-                    </div>
-                    <dl className="draft-meta">
-                      <div>
-                        <dt>Relationship</dt>
-                        <dd>{suggestion.payload.relationship}</dd>
+                        <StatusBadge tone="waiting">review</StatusBadge>
                       </div>
-                      <div>
-                        <dt>Tone</dt>
-                        <dd>{suggestion.payload.tone}</dd>
+                      <dl className="draft-meta">
+                        <div>
+                          <dt>Relationship</dt>
+                          <dd>{suggestion.payload.relationship}</dd>
+                        </div>
+                        <div>
+                          <dt>Tone</dt>
+                          <dd>{suggestion.payload.tone}</dd>
+                        </div>
+                        <div>
+                          <dt>Posture</dt>
+                          <dd>{suggestion.payload.replyPosture}</dd>
+                        </div>
+                      </dl>
+                      <ul className="context-evidence">
+                        {suggestion.evidence.map((evidence) => (
+                          <li key={evidence.rowid}>
+                            <strong>{evidence.rowid}</strong>
+                            <span>{evidence.snippet}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="draft-actions">
+                        <button
+                          className="action-button"
+                          disabled={!canEditContext}
+                          onClick={() => applySuggestion(suggestion)}
+                          type="button"
+                        >
+                          Edit suggestion
+                        </button>
+                        {relatedLink ? (
+                          <EntityLink
+                            className="ghost-button entity-button-link"
+                            href={relatedLink.href}
+                          >
+                            {relatedLink.label}
+                          </EntityLink>
+                        ) : null}
+                        <button
+                          className="ghost-button"
+                          onClick={() =>
+                            setHiddenSuggestions((current) =>
+                              new Set(current).add(suggestionKey(suggestion)),
+                            )
+                          }
+                          type="button"
+                        >
+                          Reject
+                        </button>
                       </div>
-                      <div>
-                        <dt>Posture</dt>
-                        <dd>{suggestion.payload.replyPosture}</dd>
-                      </div>
-                    </dl>
-                    <ul className="context-evidence">
-                      {suggestion.evidence.map((evidence) => (
-                        <li key={evidence.rowid}>
-                          <strong>{evidence.rowid}</strong>
-                          <span>{evidence.snippet}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="draft-actions">
-                      <button
-                        className="action-button"
-                        disabled={!canEditContext}
-                        onClick={() => applySuggestion(suggestion)}
-                        type="button"
-                      >
-                        Edit suggestion
-                      </button>
-                      <button
-                        className="ghost-button"
-                        onClick={() =>
-                          setHiddenSuggestions((current) =>
-                            new Set(current).add(suggestionKey(suggestion)),
-                          )
-                        }
-                        type="button"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -3819,6 +4058,7 @@ function ContextEditor({
   draft,
   keyField,
   keyLabel,
+  linkedHref,
   linkedName,
   onChange,
   onSave,
@@ -3829,6 +4069,7 @@ function ContextEditor({
   draft: ContextRecordView;
   keyField: "contactKey" | "roomKey";
   keyLabel: string;
+  linkedHref?: string | undefined;
   linkedName?: string | undefined;
   onChange: (draft: ContextRecordView) => void;
   onSave: () => void;
@@ -3839,12 +4080,18 @@ function ContextEditor({
     <section className="context-editor" aria-label={title}>
       <div className="context-editor-title">
         <h3>{title}</h3>
-        {linkedName ? <span>{linkedName}</span> : null}
+        {linkedName ? (
+          <span>
+            {linkedHref ? <EntityLink href={linkedHref}>{linkedName}</EntityLink> : linkedName}
+          </span>
+        ) : null}
       </div>
       {linkedName ? (
         <div className="linked-context-name">
           <span>{keyLabel}</span>
-          <strong>{linkedName}</strong>
+          <strong>
+            {linkedHref ? <EntityLink href={linkedHref}>{linkedName}</EntityLink> : linkedName}
+          </strong>
           <small>{shortIdentifier(draft[keyField] ?? "")}</small>
         </div>
       ) : (
@@ -3962,10 +4209,12 @@ function ContextEditor({
 
 function ContextList({
   onEdit,
+  relatedLinkFor,
   records,
   title,
 }: {
   onEdit: (record: ContextRecordView) => void;
+  relatedLinkFor?: (record: ContextRecordView) => { href: string; label: string } | null;
   records: ContextRecordView[];
   title: string;
 }) {
@@ -3973,19 +4222,25 @@ function ContextList({
     <section className="context-list" aria-label={title}>
       <h3>{title}</h3>
       {records.length === 0 ? <p className="muted-line">No saved records yet.</p> : null}
-      {records.map((record) => (
-        <button
-          className="context-list-item"
-          key={record.id}
-          onClick={() => onEdit(record)}
-          type="button"
-        >
-          <strong>{record.displayName || record.contactKey || record.roomKey}</strong>
-          <span>
-            {record.relationship} · {record.tone} · {record.replyPosture}
-          </span>
-        </button>
-      ))}
+      {records.map((record) => {
+        const relatedLink = relatedLinkFor?.(record) ?? null;
+
+        return (
+          <div className="context-list-row" key={record.id}>
+            <button className="context-list-item" onClick={() => onEdit(record)} type="button">
+              <strong>{record.displayName || record.contactKey || record.roomKey}</strong>
+              <span>
+                {record.relationship} · {record.tone} · {record.replyPosture}
+              </span>
+            </button>
+            {relatedLink ? (
+              <EntityLink className="mini-related-link" href={relatedLink.href}>
+                {relatedLink.label}
+              </EntityLink>
+            ) : null}
+          </div>
+        );
+      })}
     </section>
   );
 }
