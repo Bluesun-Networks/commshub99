@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun run build:deps && next build",
+    "build": "cd ../.. && bun run db:update && cd apps/web && bun run build:deps && next build",
     "build:deps": "bun run --filter @commshub99/db build && bun run --filter @commshub99/auth build && bun run --filter @commshub99/core build && bun run --filter @commshub99/mcp-client build && bun run --filter @commshub99/adapter-imessage build",
     "dev": "next dev",
     "start": "next start",

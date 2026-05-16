@@ -3,6 +3,7 @@ import type { Dirent } from "node:fs";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
+import { ContextService } from "@commshub99/core";
 import Database from "better-sqlite3";
 import { parseFrontmatter } from "./frontmatter.js";
 import {
@@ -22,7 +23,13 @@ export interface DraftActionResult {
 
 export interface ApproveImessageDraftOptions {
   overrideContextSafeguards?: boolean;
+  tenantId?: string;
 }
+
+type ChatContextInput = {
+  contactKeys: string[];
+  roomKey: string;
+};
 
 async function findDraftPath(directory: string, uuid: string): Promise<string | null> {
   let entries: Dirent[];
@@ -146,7 +153,82 @@ function sendService(value: string) {
   return "";
 }
 
-function writeOutboxContent(content: string) {
+function readChatContextInput(chatId: string, targetIdentifier: string): ChatContextInput {
+  const input: ChatContextInput = {
+    contactKeys: targetIdentifier ? [targetIdentifier] : [],
+    roomKey: chatId,
+  };
+  const databasePath = resolveImessageDatabasePath();
+
+  if (!existsSync(databasePath)) {
+    return input;
+  }
+
+  const sqlite = new Database(databasePath, {
+    fileMustExist: true,
+    readonly: true,
+  });
+
+  try {
+    const chat = sqlite.prepare("SELECT identifier FROM chats WHERE id = ?").get(chatId) as
+      | { identifier?: string }
+      | undefined;
+    const matches = sqlite
+      .prepare(
+        `SELECT contact_id
+        FROM chat_contact_matches
+        WHERE chat_id = ?
+          AND status = 'matched'
+          AND contact_id IS NOT NULL`,
+      )
+      .all(chatId) as Array<{ contact_id?: string }>;
+    const contactKeys = new Set(input.contactKeys);
+
+    if (chat?.identifier) {
+      contactKeys.add(chat.identifier);
+    }
+
+    for (const match of matches) {
+      if (match.contact_id) {
+        contactKeys.add(match.contact_id);
+      }
+    }
+
+    return {
+      contactKeys: [...contactKeys],
+      roomKey: chatId,
+    };
+  } finally {
+    sqlite.close();
+  }
+}
+
+function currentSignature(tenantId: string | undefined, chatId: string, targetIdentifier: string) {
+  if (!tenantId) {
+    return "";
+  }
+
+  return new ContextService()
+    .resolve({
+      channelId: "imessage",
+      ...readChatContextInput(chatId, targetIdentifier),
+      tenantId,
+    })
+    .effective.signature.trim();
+}
+
+function bodyWithSignature(body: string, signature: string) {
+  const trimmedBody = body.trim();
+  const trimmedSignature = signature.trim();
+
+  if (!trimmedSignature || trimmedBody.endsWith(trimmedSignature)) {
+    return `${trimmedBody}\n`;
+  }
+
+  return `${trimmedBody}\n\n${trimmedSignature}\n`;
+}
+
+function writeOutboxContent(content: string, options: ApproveImessageDraftOptions = {}) {
   const { body, meta } = parseFrontmatter(content);
   const outboxMeta = new Map<string, string | number | boolean>();
   const uuid = meta.get("uuid");
@@ -158,13 +240,18 @@ function writeOutboxContent(content: string) {
 
   outboxMeta.set("uuid", uuid);
   const numericChatId = Number(chatId);
+  const targetIdentifier = meta.get("target_identifier") ?? "";
+  const signature =
+    currentSignature(options.tenantId ?? meta.get("context_tenant_id"), chatId, targetIdentifier) ||
+    (meta.get("context_signature") ?? "");
 
   outboxMeta.set("chat_id", numericChatId);
-  outboxMeta.set("target_identifier", meta.get("target_identifier") ?? "");
+  outboxMeta.set("target_identifier", targetIdentifier);
   outboxMeta.set("created_at", meta.get("created_at") ?? new Date().toISOString());
   outboxMeta.set("source_draft_uuid", uuid);
   outboxMeta.set("reasoning", meta.get("reasoning") ?? "");
   outboxMeta.set("auto_approved", meta.get("auto_approved") === "true");
+  outboxMeta.set("context_signature", signature);
 
   const service = sendService(meta.get("service") || readChatService(numericChatId));
   if (service) {
@@ -188,7 +275,6 @@ function writeOutboxContent(content: string) {
     "context_version_ids",
     "context_tone",
     "context_reply_posture",
-    "context_signature",
     "context_allowed_personal_details",
     "context_custom_personal_details",
   ]) {
@@ -203,7 +289,7 @@ function writeOutboxContent(content: string) {
     .map(([key, value]) => `${key}: ${yamlScalar(value)}`)
     .join("\n");
 
-  return `---\n${frontmatter}\n---\n${body}\n`;
+  return `---\n${frontmatter}\n---\n${bodyWithSignature(body, signature)}`;
 }
 
 async function atomicWrite(path: string, content: string) {
@@ -261,7 +347,7 @@ export async function approveImessageDraft(
     throw new Error(violation);
   }
 
-  await atomicWrite(outboxPath, writeOutboxContent(content));
+  await atomicWrite(outboxPath, writeOutboxContent(content, options));
   await unlink(requiredDraftPath);
 
   return {

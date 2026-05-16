@@ -7,7 +7,7 @@ import { requireAuthenticatedRequest } from "../_auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const pollIntervalMs = 1500;
+const pollIntervalMs = 10_000;
 
 function imsgDataDir() {
   return process.env.IMSG_DATA_DIR ?? join(homedir(), "imsg-data");

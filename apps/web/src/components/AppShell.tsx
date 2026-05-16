@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   CircleDashed,
   ClipboardCheck,
-  Database,
   Download,
   Eye,
   FileDown,
@@ -31,11 +30,11 @@ import {
   RefreshCw,
   Search,
   Settings,
-  ShieldCheck,
   Star,
   Tag,
   Trash2,
   UserPlus,
+  UserRoundCog,
   UsersRound,
   X,
 } from "lucide-react";
@@ -169,27 +168,6 @@ const readinessRows = [
   { area: "Auth", owner: "packages/auth", state: "Next", tone: "waiting" },
   { area: "iMessage", owner: "adapters/imessage", state: "Queued", tone: "waiting" },
 ] satisfies Array<{ area: string; owner: string; state: string; tone: Tone }>;
-
-const nextTasks = [
-  {
-    detail: "Email/password sessions backed by the hub database.",
-    icon: <ShieldCheck aria-hidden size={19} />,
-    title: "Wire better-auth",
-    tone: "warn",
-  },
-  {
-    detail: "Conversation, message, participant, attachment, draft.",
-    icon: <MessageSquareText aria-hidden size={19} />,
-    title: "Define channel types",
-    tone: "warn",
-  },
-  {
-    detail: "Read-only access to imsg-agent SQLite fixtures first.",
-    icon: <Database aria-hidden size={19} />,
-    title: "Connect iMessage read model",
-    tone: "warn",
-  },
-] satisfies Array<{ detail: string; icon: ReactNode; title: string; tone: "warn" }>;
 
 const navItems = [
   { icon: <Inbox aria-hidden size={19} />, label: "Overview", view: "overview" },
@@ -706,6 +684,20 @@ function contactContextKey(contact: Contact) {
   return contact.id || contact.phonePoints[0]?.value || contact.emailPoints[0]?.value;
 }
 
+function contactContextKeyOptions(contact: Contact) {
+  return [
+    contact.id,
+    ...contact.phonePoints.map((point) => point.value),
+    ...contact.emailPoints.map((point) => point.value),
+  ]
+    .filter(Boolean)
+    .map((value) => normalizeIdentifier(value) || value);
+}
+
+function shortIdentifier(value: string) {
+  return value.length > 18 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
+}
+
 function parseVcardContacts(text: string) {
   return text
     .split(/BEGIN:VCARD/i)
@@ -1002,30 +994,65 @@ export function AppShell({
           draftResponse,
           scheduleResponse,
           contextResponse,
-        ] = await Promise.all([
+        ] = await Promise.allSettled([
           fetch("/api/imessage/conversations", { cache: "no-store" }),
           fetch("/api/imessage/contacts", { cache: "no-store" }),
           loadDraftProposals(),
           loadScheduledSends(),
           loadContextData(),
         ]);
+
+        if (conversationResponse.status === "rejected") {
+          throw conversationResponse.reason;
+        }
+
+        if (contactResponse.status === "rejected") {
+          throw contactResponse.reason;
+        }
+
+        const conversationFetchResponse = conversationResponse.value;
+        const contactFetchResponse = contactResponse.value;
         const conversationPayload = await responseJson<{
           conversations?: Conversation[];
           error?: string;
-        }>(conversationResponse);
+        }>(conversationFetchResponse);
         const contactPayload = await responseJson<{
           contacts?: Contact[];
           error?: string;
-        }>(contactResponse);
+        }>(contactFetchResponse);
 
         if (!ignore) {
-          setDrafts(draftResponse);
-          setSchedules(scheduleResponse);
-          setContextData(contextResponse);
+          if (draftResponse.status === "fulfilled") {
+            setDrafts(draftResponse.value);
+          } else {
+            setDraftError(
+              draftResponse.reason instanceof Error
+                ? draftResponse.reason.message
+                : "Could not load draft proposals",
+            );
+            setDrafts([]);
+          }
+
+          if (scheduleResponse.status === "fulfilled") {
+            setSchedules(scheduleResponse.value);
+          } else {
+            setSchedules([]);
+          }
+
+          if (contextResponse.status === "fulfilled") {
+            setContextData(contextResponse.value);
+          } else {
+            setContextError(
+              contextResponse.reason instanceof Error
+                ? contextResponse.reason.message
+                : "Could not load context",
+            );
+            setContextData(null);
+          }
         }
 
         if (!ignore) {
-          if (conversationResponse.ok) {
+          if (conversationFetchResponse.ok) {
             setConversations(conversationPayload.conversations ?? []);
           } else {
             setConversationError(conversationPayload.error ?? "Could not load conversations");
@@ -1034,7 +1061,7 @@ export function AppShell({
         }
 
         if (!ignore) {
-          if (contactResponse.ok) {
+          if (contactFetchResponse.ok) {
             setContacts(contactPayload.contacts ?? []);
           } else {
             setContactError(contactPayload.error ?? "Could not load contacts");
@@ -1072,6 +1099,10 @@ export function AppShell({
   }, []);
 
   useEffect(() => {
+    if (activeView !== "approvals") {
+      return;
+    }
+
     const events = new EventSource("/api/events");
 
     events.addEventListener("approvals", () => {
@@ -1081,7 +1112,7 @@ export function AppShell({
     return () => {
       events.close();
     };
-  }, [refreshApprovals]);
+  }, [activeView, refreshApprovals]);
 
   function selectMode(nextMode: Mode) {
     setMode(nextMode);
@@ -1203,7 +1234,6 @@ export function AppShell({
             conversationsLoading={conversationsLoading}
             draftsCount={drafts.length}
             draftsLoading={draftsLoading}
-            mode={mode}
             onSelectView={navigateView}
           />
         ) : null}
@@ -1235,6 +1265,7 @@ export function AppShell({
           <Approvals
             canMutateDrafts={currentUser.role === "admin"}
             contacts={contacts}
+            contextData={contextData}
             conversations={conversations}
             drafts={drafts}
             error={draftError}
@@ -1248,6 +1279,8 @@ export function AppShell({
         {activeView === "context" ? (
           <ContextView
             canEditContext={currentUser.role === "admin"}
+            contacts={contacts}
+            conversations={conversations}
             data={contextData}
             error={contextError}
             focus={contextFocus}
@@ -1267,18 +1300,16 @@ function Overview({
   conversationsLoading,
   draftsCount,
   draftsLoading,
-  mode,
   onSelectView,
 }: {
   conversationsCount: number;
   conversationsLoading: boolean;
   draftsCount: number;
   draftsLoading: boolean;
-  mode: Mode;
   onSelectView: (view: View) => void;
 }) {
   return (
-    <div className="dashboard">
+    <div className="dashboard dashboard-single">
       <section className="section" aria-labelledby="readiness-heading">
         <div className="metric-grid">
           <button
@@ -1297,10 +1328,14 @@ function Overview({
             <span>Conversations</span>
             <strong>{conversationsLoading ? "..." : conversationsCount}</strong>
           </button>
-          <div className="metric">
-            <span>Database tasks</span>
-            <strong>4/4</strong>
-          </div>
+          <button
+            className="metric metric-button"
+            onClick={() => onSelectView("context")}
+            type="button"
+          >
+            <span>Custom profiles</span>
+            <strong>Context</strong>
+          </button>
         </div>
 
         <div className="section-heading">
@@ -1335,26 +1370,6 @@ function Overview({
               ))}
             </tbody>
           </table>
-        </div>
-      </section>
-
-      <section className="section" aria-labelledby="queue-heading">
-        <div className="section-heading">
-          <h2 id="queue-heading">Queue</h2>
-          <StatusBadge tone="waiting">{mode === "essentials" ? "Essentials" : "Power"}</StatusBadge>
-        </div>
-        <div className="panel">
-          <ul className="task-list">
-            {nextTasks.map((task) => (
-              <li className="task" key={task.title}>
-                <span className={`icon-${task.tone}`}>{task.icon}</span>
-                <span>
-                  <strong>{task.title}</strong>
-                  <span>{task.detail}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
     </div>
@@ -1587,6 +1602,8 @@ function Contacts({
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState("all");
+  const [contactActionError, setContactActionError] = useState<string | null>(null);
+  const [contactActionNote, setContactActionNote] = useState<string | null>(null);
   const [draftContact, setDraftContact] = useState<Contact | null>(null);
   const [newTag, setNewTag] = useState("");
   const [trackedIds, setTrackedIds] = useState<string[]>([]);
@@ -1685,6 +1702,8 @@ function Contacts({
       return;
     }
 
+    setContactActionError(null);
+    setContactActionNote(null);
     const nextContact = blankContact();
     setManagedContacts((current) => [nextContact, ...current]);
     setSelectedId(nextContact.id);
@@ -1693,6 +1712,8 @@ function Contacts({
 
   function beginEdit() {
     if (selectedContact && canWriteContacts) {
+      setContactActionError(null);
+      setContactActionNote(null);
       setDraftContact(selectedContact);
     }
   }
@@ -1732,20 +1753,30 @@ function Contacts({
       return;
     }
 
-    const originalId = draftContact.id;
-    const savedContact = await saveContact({
-      ...draftContact,
-      displayName:
-        draftContact.displayName.trim() ||
-        [draftContact.givenName, draftContact.familyName].filter(Boolean).join(" ") ||
-        "Unnamed contact",
-    });
+    setContactActionError(null);
+    setContactActionNote(null);
 
-    setManagedContacts((current) =>
-      current.map((contact) => (contact.id === originalId ? savedContact : contact)),
-    );
-    setSelectedId(savedContact.id);
-    setDraftContact(null);
+    try {
+      const originalId = draftContact.id;
+      const savedContact = await saveContact({
+        ...draftContact,
+        displayName:
+          draftContact.displayName.trim() ||
+          [draftContact.givenName, draftContact.familyName].filter(Boolean).join(" ") ||
+          "Unnamed contact",
+      });
+
+      setManagedContacts((current) =>
+        current.map((contact) => (contact.id === originalId ? savedContact : contact)),
+      );
+      setSelectedId(savedContact.id);
+      setDraftContact(null);
+      setContactActionNote(`Saved ${savedContact.displayName}.`);
+    } catch (saveError) {
+      setContactActionError(
+        saveError instanceof Error ? saveError.message : "Could not save contact",
+      );
+    }
   }
 
   function removeSelectedContact() {
@@ -1755,6 +1786,7 @@ function Contacts({
 
     setManagedContacts((current) => current.filter((contact) => contact.id !== selectedContact.id));
     saveTrackedIds(trackedIds.filter((id) => id !== selectedContact.id));
+    setContactActionNote(`Removed ${selectedContact.displayName} from this view.`);
   }
 
   function toggleTracking(contactId: string) {
@@ -1837,12 +1869,19 @@ function Contacts({
           updatedAt: "Photo added just now",
         };
         updateSelectedContact(nextContact);
-        void saveContact(nextContact).then((savedContact) => {
-          setManagedContacts((current) =>
-            current.map((contact) => (contact.id === nextContact.id ? savedContact : contact)),
-          );
-          setSelectedId(savedContact.id);
-        });
+        void saveContact(nextContact)
+          .then((savedContact) => {
+            setManagedContacts((current) =>
+              current.map((contact) => (contact.id === nextContact.id ? savedContact : contact)),
+            );
+            setSelectedId(savedContact.id);
+            setContactActionNote(`Saved photo for ${savedContact.displayName}.`);
+          })
+          .catch((photoError: unknown) => {
+            setContactActionError(
+              photoError instanceof Error ? photoError.message : "Could not save contact photo",
+            );
+          });
       }
     });
     reader.readAsDataURL(file);
@@ -2014,6 +2053,8 @@ function Contacts({
           title="Could not load contacts"
         />
       ) : null}
+      {contactActionError ? <p className="draft-action-error">{contactActionError}</p> : null}
+      {contactActionNote ? <p className="context-action-note">{contactActionNote}</p> : null}
 
       {!error && loading ? (
         <EmptyState
@@ -2455,6 +2496,7 @@ function Contacts({
 function Approvals({
   canMutateDrafts,
   contacts,
+  contextData,
   conversations,
   drafts,
   error,
@@ -2466,6 +2508,7 @@ function Approvals({
 }: {
   canMutateDrafts: boolean;
   contacts: Contact[];
+  contextData: ContextDataView | null;
   conversations: Conversation[];
   drafts: DraftProposal[];
   error: string | null;
@@ -2533,6 +2576,19 @@ function Approvals({
 
     return grouped;
   }, [schedules]);
+  const contextNameById = useMemo(() => {
+    const names = new Map<string, string>();
+
+    for (const record of contextData?.contactContexts ?? []) {
+      names.set(record.id, record.displayName || record.contactKey || shortIdentifier(record.id));
+    }
+
+    for (const record of contextData?.conversationContexts ?? []) {
+      names.set(record.id, record.displayName || record.roomKey || shortIdentifier(record.id));
+    }
+
+    return names;
+  }, [contextData]);
 
   async function runDraftAction(uuid: string, action: () => Promise<Response>) {
     setActionError(null);
@@ -2981,13 +3037,20 @@ function Approvals({
                         <dt>Profiles</dt>
                         <dd>
                           {[...draft.context.contactContextIds, draft.context.conversationContextId]
-                            .filter(Boolean)
+                            .filter((id): id is string => !!id)
+                            .map((id) => contextNameById.get(id) ?? shortIdentifier(id))
                             .join(", ") || "None"}
                         </dd>
                       </div>
                       <div>
                         <dt>Versions</dt>
-                        <dd>{draft.context.contextVersionIds.join(", ") || "Unversioned"}</dd>
+                        <dd>
+                          {draft.context.contextVersionIds.length > 0
+                            ? `${draft.context.contextVersionIds.length} saved change${
+                                draft.context.contextVersionIds.length === 1 ? "" : "s"
+                              }`
+                            : "Unversioned"}
+                        </dd>
                       </div>
                       <div>
                         <dt>Signature</dt>
@@ -3231,6 +3294,8 @@ function defaultContextDraft(scope: "contact" | "conversation"): ContextRecordVi
 
 function ContextView({
   canEditContext,
+  contacts,
+  conversations,
   data,
   error,
   focus,
@@ -3238,6 +3303,8 @@ function ContextView({
   onRefresh,
 }: {
   canEditContext: boolean;
+  contacts: Contact[];
+  conversations: Conversation[];
   data: ContextDataView | null;
   error: string | null;
   focus: ContextFocus | null;
@@ -3252,6 +3319,41 @@ function ContextView({
   const [settingsSignature, setSettingsSignature] = useState("");
   const contactEditorRef = useRef<HTMLDivElement>(null);
   const conversationEditorRef = useRef<HTMLDivElement>(null);
+  const contactContextLookup = useMemo(() => {
+    const records = new Map<string, ContextRecordView>();
+
+    for (const record of data?.contactContexts ?? []) {
+      if (record.contactKey) {
+        records.set(normalizeIdentifier(record.contactKey) || record.contactKey, record);
+      }
+    }
+
+    return records;
+  }, [data]);
+  const conversationContextLookup = useMemo(() => {
+    const records = new Map<string, ContextRecordView>();
+
+    for (const record of data?.conversationContexts ?? []) {
+      if (record.channelId === "imessage" && record.roomKey) {
+        records.set(record.roomKey, record);
+      }
+    }
+
+    return records;
+  }, [data]);
+  const selectedContact = useMemo(() => {
+    const contactKey =
+      normalizeIdentifier(contactDraft.contactKey ?? "") || contactDraft.contactKey;
+
+    return contacts.find((contact) => contactContextKeyOptions(contact).includes(contactKey ?? ""));
+  }, [contactDraft.contactKey, contacts]);
+  const selectedConversation = useMemo(
+    () =>
+      conversations.find(
+        (conversation) => conversationRoomKey(conversation) === conversationDraft.roomKey,
+      ),
+    [conversationDraft.roomKey, conversations],
+  );
 
   useEffect(() => {
     setSettingsSignature(data?.settings.signature ?? "");
@@ -3272,6 +3374,44 @@ function ContextView({
         )
         ?.focus();
     });
+  }
+
+  function editContactContext(contact: Contact) {
+    const keys = contactContextKeyOptions(contact);
+    const existing = keys.map((key) => contactContextLookup.get(key)).find(Boolean);
+    const key = existing?.contactKey ?? contactContextKey(contact);
+
+    if (!key) {
+      return;
+    }
+
+    setContactDraft(
+      existing ?? {
+        ...defaultContextDraft("contact"),
+        contactKey: key,
+        displayName: contact.displayName,
+        tenantId: data?.tenantId ?? "",
+      },
+    );
+    setActionNote(`Editing contact customization for ${contact.displayName}.`);
+    focusEditor("contact");
+  }
+
+  function editConversationContext(conversation: Conversation) {
+    const roomKey = conversationRoomKey(conversation);
+    const existing = conversationContextLookup.get(roomKey);
+
+    setConversationDraft(
+      existing ?? {
+        ...defaultContextDraft("conversation"),
+        channelId: "imessage",
+        displayName: conversation.contact,
+        roomKey,
+        tenantId: data?.tenantId ?? "",
+      },
+    );
+    setActionNote(`Editing conversation customization for ${conversation.contact}.`);
+    focusEditor("conversation");
   }
 
   useEffect(() => {
@@ -3320,16 +3460,20 @@ function ContextView({
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const payload = await responseJson<{ error?: string }>(response);
+      const payload = await responseJson<{ context?: ContextRecordView | null; error?: string }>(
+        response,
+      );
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Could not save context");
       }
 
-      if (scope === "contact") {
-        setContactDraft(defaultContextDraft("contact"));
-      } else {
-        setConversationDraft(defaultContextDraft("conversation"));
+      if (payload.context) {
+        if (scope === "contact") {
+          setContactDraft(payload.context);
+        } else {
+          setConversationDraft(payload.context);
+        }
       }
 
       await onRefresh();
@@ -3451,6 +3595,81 @@ function ContextView({
       ) : null}
       {!error && !loading ? (
         <>
+          <section className="context-primary" aria-labelledby="context-primary-heading">
+            <div className="section-heading">
+              <h3 id="context-primary-heading">Contact Customization</h3>
+              <StatusBadge tone="ready">{contacts.length} contacts</StatusBadge>
+            </div>
+            <div className="context-picker-grid">
+              <div className="context-picker-list">
+                {contacts.length === 0 ? (
+                  <p className="muted-line">No contacts are available yet.</p>
+                ) : null}
+                {contacts.slice(0, 12).map((contact) => {
+                  const keys = contactContextKeyOptions(contact);
+                  const hasContext = keys.some((key) => contactContextLookup.has(key));
+                  const isSelected = selectedContact?.id === contact.id;
+
+                  return (
+                    <button
+                      aria-pressed={isSelected}
+                      className="context-person-button"
+                      key={contact.id}
+                      onClick={() => editContactContext(contact)}
+                      type="button"
+                    >
+                      <ContactAvatar contact={contact} />
+                      <span>
+                        <strong>{contact.displayName}</strong>
+                        <span>
+                          {hasContext ? "Customized" : "Default"} ·{" "}
+                          {contact.phonePoints[0]?.value ||
+                            contact.emailPoints[0]?.value ||
+                            shortIdentifier(contact.id)}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="context-link-panel">
+                <UserRoundCog aria-hidden size={22} />
+                <span>
+                  <strong>
+                    {selectedContact?.displayName || contactDraft.displayName || "Pick a contact"}
+                  </strong>
+                  <span>
+                    {contactDraft.contactKey
+                      ? `Customization key: ${shortIdentifier(contactDraft.contactKey)}`
+                      : "Choose a contact to edit its default tone, reply posture, signature, and boundaries."}
+                  </span>
+                </span>
+              </div>
+              <div className="context-conversation-strip">
+                <strong>Conversation overrides</strong>
+                {conversations.slice(0, 6).map((conversation) => {
+                  const roomKey = conversationRoomKey(conversation);
+                  const hasContext = conversationContextLookup.has(roomKey);
+
+                  return (
+                    <button
+                      aria-pressed={conversationDraft.roomKey === roomKey}
+                      className="context-room-button"
+                      key={conversation.id}
+                      onClick={() => editConversationContext(conversation)}
+                      type="button"
+                    >
+                      <MessageCircle aria-hidden size={16} />
+                      <span>
+                        <strong>{conversation.contact}</strong>
+                        <span>{hasContext ? "Customized" : "Default conversation"}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
           <section className="context-settings" aria-labelledby="context-settings-heading">
             <h3 id="context-settings-heading">Global Signature</h3>
             <label>
@@ -3476,11 +3695,12 @@ function ContextView({
                 canEditContext={canEditContext}
                 draft={contactDraft}
                 keyField="contactKey"
-                keyLabel="Contact key"
+                keyLabel="Linked contact"
                 onChange={setContactDraft}
                 onSave={() => void saveContext("contact", contactDraft)}
                 onToggleDetail={(detail) => toggleDetail(contactDraft, setContactDraft, detail)}
-                title="Contact Context"
+                linkedName={selectedContact?.displayName}
+                title="Contact Defaults"
               />
             </div>
             <div ref={conversationEditorRef}>
@@ -3488,13 +3708,14 @@ function ContextView({
                 canEditContext={canEditContext}
                 draft={conversationDraft}
                 keyField="roomKey"
-                keyLabel="Room key"
+                keyLabel="Linked conversation"
                 onChange={setConversationDraft}
                 onSave={() => void saveContext("conversation", conversationDraft)}
                 onToggleDetail={(detail) =>
                   toggleDetail(conversationDraft, setConversationDraft, detail)
                 }
-                title="Conversation Context"
+                linkedName={selectedConversation?.contact}
+                title="Conversation Override"
               />
             </div>
           </div>
@@ -3598,6 +3819,7 @@ function ContextEditor({
   draft,
   keyField,
   keyLabel,
+  linkedName,
   onChange,
   onSave,
   onToggleDetail,
@@ -3607,6 +3829,7 @@ function ContextEditor({
   draft: ContextRecordView;
   keyField: "contactKey" | "roomKey";
   keyLabel: string;
+  linkedName?: string | undefined;
   onChange: (draft: ContextRecordView) => void;
   onSave: () => void;
   onToggleDetail: (detail: string) => void;
@@ -3614,14 +3837,30 @@ function ContextEditor({
 }) {
   return (
     <section className="context-editor" aria-label={title}>
-      <h3>{title}</h3>
-      <label>
-        <span>{keyLabel}</span>
-        <input
-          onChange={(event) => onChange({ ...draft, [keyField]: event.target.value })}
-          value={draft[keyField] ?? ""}
-        />
-      </label>
+      <div className="context-editor-title">
+        <h3>{title}</h3>
+        {linkedName ? <span>{linkedName}</span> : null}
+      </div>
+      {linkedName ? (
+        <div className="linked-context-name">
+          <span>{keyLabel}</span>
+          <strong>{linkedName}</strong>
+          <small>{shortIdentifier(draft[keyField] ?? "")}</small>
+        </div>
+      ) : (
+        <label>
+          <span>{keyLabel}</span>
+          <input
+            onChange={(event) => onChange({ ...draft, [keyField]: event.target.value })}
+            placeholder={
+              keyField === "contactKey"
+                ? "Pick a contact above or enter a handle"
+                : "Open a conversation or enter its room key"
+            }
+            value={draft[keyField] ?? ""}
+          />
+        </label>
+      )}
       <label>
         <span>Display name</span>
         <input

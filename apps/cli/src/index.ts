@@ -449,7 +449,10 @@ function defaultTenantId() {
 
 async function approvePendingDraft(uuid: string) {
   const overrideContextSafeguards = process.argv.includes("--override-context");
-  const result = await approveImessageDraft(uuid, { overrideContextSafeguards });
+  const result = await approveImessageDraft(uuid, {
+    overrideContextSafeguards,
+    tenantId: defaultTenantId(),
+  });
 
   console.log(`${result.alreadyCompleted ? "Already queued" : "Queued"} ${uuid} for imsg-agent.`);
 }

@@ -216,6 +216,10 @@ a:focus-visible {
   align-items: start;
 }
 
+.dashboard-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .section {
   display: grid;
   gap: 12px;
@@ -1359,6 +1363,7 @@ tr:last-child td {
 
 .context-editor,
 .context-list,
+.context-primary,
 .context-settings,
 .context-suggestions {
   display: grid;
@@ -1372,10 +1377,138 @@ tr:last-child td {
 
 .context-editor h3,
 .context-list h3,
+.context-primary h3,
 .context-settings h3,
 .context-suggestions h3 {
   margin: 0;
   font-size: 0.96rem;
+}
+
+.context-picker-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(260px, 0.7fr) minmax(280px, 0.85fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.context-picker-list,
+.context-conversation-strip {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.context-conversation-strip > strong {
+  font-size: 0.86rem;
+}
+
+.context-person-button,
+.context-room-button {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #f9faf7;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+.context-person-button {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.context-room-button {
+  grid-template-columns: 20px minmax(0, 1fr);
+}
+
+.context-person-button[aria-pressed="true"],
+.context-person-button:hover,
+.context-room-button[aria-pressed="true"],
+.context-room-button:hover {
+  border-color: #8ccac0;
+  background: var(--accent-soft);
+}
+
+.context-person-button > span,
+.context-room-button > span,
+.context-link-panel > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.context-person-button strong,
+.context-room-button strong,
+.context-link-panel strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-person-button span span,
+.context-room-button span span,
+.context-link-panel span span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-link-panel {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-content: start;
+  gap: 10px;
+  border: 1px solid #b8ded5;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--accent-soft);
+  color: #15564f;
+}
+
+.context-editor-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.context-editor-title span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linked-context-name {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #f9faf7;
+}
+
+.linked-context-name span,
+.linked-context-name small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.linked-context-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .context-editor label,
@@ -1756,6 +1889,7 @@ tr:last-child td {
   .context-choice-row,
   .context-columns,
   .context-editor-grid,
+  .context-picker-grid,
   .tracking-grid {
     grid-template-columns: 1fr;
   }

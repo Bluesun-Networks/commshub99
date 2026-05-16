@@ -3,19 +3,28 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { approveImessageDraft, rejectImessageDraft, updateImessageDraft } from "./draft-actions.js";
 
+const originalDbPath = process.env.COMMSHUB99_DB_PATH;
 const originalDataDir = process.env.IMSG_DATA_DIR;
 let tempDir = "";
 
 beforeEach(async () => {
   tempDir = mkdtempSync(join(tmpdir(), "commshub99-imessage-"));
+  process.env.COMMSHUB99_DB_PATH = join(tempDir, "hub.db");
   process.env.IMSG_DATA_DIR = tempDir;
   await mkdir(join(tempDir, "chats", "7", "drafts"), { recursive: true });
 });
 
 afterEach(() => {
+  if (originalDbPath === undefined) {
+    delete process.env.COMMSHUB99_DB_PATH;
+  } else {
+    process.env.COMMSHUB99_DB_PATH = originalDbPath;
+  }
+
   if (originalDataDir === undefined) {
     delete process.env.IMSG_DATA_DIR;
   } else {
@@ -59,6 +68,102 @@ Hello there
   );
 }
 
+function seedContextDb({
+  contactSignatureMode = "inherit",
+  contactSignatureValue = "",
+  globalSignature = "",
+}: {
+  contactSignatureMode?: "inherit" | "append" | "override";
+  contactSignatureValue?: string;
+  globalSignature?: string;
+}) {
+  const sqlite = new Database(process.env.COMMSHUB99_DB_PATH ?? join(tempDir, "hub.db"));
+
+  try {
+    sqlite.exec(`
+      CREATE TABLE tenant_settings (
+        tenant_id text PRIMARY KEY NOT NULL,
+        signature text DEFAULT '' NOT NULL,
+        created_at integer NOT NULL,
+        updated_at integer NOT NULL
+      );
+      CREATE TABLE contact_contexts (
+        id text PRIMARY KEY NOT NULL,
+        tenant_id text NOT NULL,
+        contact_key text NOT NULL,
+        display_name text DEFAULT '' NOT NULL,
+        relationship text DEFAULT 'unknown' NOT NULL,
+        tone text DEFAULT 'warm' NOT NULL,
+        reply_posture text DEFAULT 'reply_if_needed' NOT NULL,
+        custom_prompt text DEFAULT '' NOT NULL,
+        notes text DEFAULT '' NOT NULL,
+        signature_mode text DEFAULT 'inherit' NOT NULL,
+        signature_value text DEFAULT '' NOT NULL,
+        allowed_personal_details_json text DEFAULT '[]' NOT NULL,
+        custom_personal_details_json text DEFAULT '[]' NOT NULL,
+        created_at integer NOT NULL,
+        updated_at integer NOT NULL
+      );
+      CREATE TABLE conversation_contexts (
+        id text PRIMARY KEY NOT NULL,
+        tenant_id text NOT NULL,
+        channel_id text NOT NULL,
+        room_key text NOT NULL,
+        display_name text DEFAULT '' NOT NULL,
+        relationship text DEFAULT 'unknown' NOT NULL,
+        tone text DEFAULT 'warm' NOT NULL,
+        reply_posture text DEFAULT 'reply_if_needed' NOT NULL,
+        custom_prompt text DEFAULT '' NOT NULL,
+        notes text DEFAULT '' NOT NULL,
+        signature_mode text DEFAULT 'inherit' NOT NULL,
+        signature_value text DEFAULT '' NOT NULL,
+        allowed_personal_details_json text DEFAULT '[]' NOT NULL,
+        custom_personal_details_json text DEFAULT '[]' NOT NULL,
+        created_at integer NOT NULL,
+        updated_at integer NOT NULL
+      );
+      CREATE TABLE context_versions (
+        id text PRIMARY KEY NOT NULL,
+        tenant_id text NOT NULL,
+        context_type text NOT NULL,
+        context_id text NOT NULL,
+        operation text NOT NULL,
+        actor_user_id text,
+        before_json text,
+        after_json text,
+        source text DEFAULT 'human' NOT NULL,
+        confidence real,
+        review_status text DEFAULT 'approved' NOT NULL,
+        created_at integer NOT NULL
+      );
+    `);
+    sqlite
+      .prepare(
+        `INSERT INTO tenant_settings (tenant_id, signature, created_at, updated_at)
+        VALUES ('tenant-1', ?, 1, 1)`,
+      )
+      .run(globalSignature);
+
+    if (contactSignatureValue || contactSignatureMode !== "inherit") {
+      sqlite
+        .prepare(
+          `INSERT INTO contact_contexts (
+            id,
+            tenant_id,
+            contact_key,
+            signature_mode,
+            signature_value,
+            created_at,
+            updated_at
+          ) VALUES ('contact-context-1', 'tenant-1', '+15551234567', ?, ?, 1, 1)`,
+        )
+        .run(contactSignatureMode, contactSignatureValue);
+    }
+  } finally {
+    sqlite.close();
+  }
+}
+
 describe("iMessage draft actions", () => {
   it("updates a draft body in place", async () => {
     writeDraft();
@@ -88,6 +193,35 @@ describe("iMessage draft actions", () => {
 
     expect(readFileSync(outboxPath(), "utf8")).toContain("Edited before approve\n");
     expect(readFileSync(outboxPath(), "utf8")).not.toContain("Hello there");
+  });
+
+  it("appends the current global signature when approving", async () => {
+    writeDraft();
+    seedContextDb({ globalSignature: "- Global signature" });
+
+    await approveImessageDraft("draft-1", { tenantId: "tenant-1" });
+
+    const outbox = readFileSync(outboxPath(), "utf8");
+
+    expect(outbox).toContain("Hello there\n\n- Global signature\n");
+    expect(outbox).toContain('context_signature: "- Global signature"');
+  });
+
+  it("uses a contact signature override instead of the global signature", async () => {
+    writeDraft();
+    seedContextDb({
+      contactSignatureMode: "override",
+      contactSignatureValue: "- Contact signature",
+      globalSignature: "- Global signature",
+    });
+
+    await approveImessageDraft("draft-1", { tenantId: "tenant-1" });
+
+    const outbox = readFileSync(outboxPath(), "utf8");
+
+    expect(outbox).toContain("Hello there\n\n- Contact signature\n");
+    expect(outbox).toContain('context_signature: "- Contact signature"');
+    expect(outbox).not.toContain("- Global signature");
   });
 
   it("blocks do_not_reply drafts unless explicitly overridden", async () => {

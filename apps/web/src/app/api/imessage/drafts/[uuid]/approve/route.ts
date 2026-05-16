@@ -1,11 +1,38 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { approveImessageDraft } from "@commshub99/adapter-imessage";
+import { createDbClient } from "@commshub99/db";
 import { NextResponse } from "next/server";
 import { writeRouteDraftMutationAudit } from "../../../../_audit";
 import { requirePermissionRequest } from "../../../../_auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function defaultTenantId(userId: string) {
+  const client = createDbClient();
+
+  try {
+    const membership = client.sqlite
+      .prepare("SELECT tenant_id AS tenantId FROM tenant_users WHERE user_id = ? LIMIT 1")
+      .get(userId) as { tenantId?: string } | undefined;
+
+    if (membership?.tenantId) {
+      return membership.tenantId;
+    }
+
+    const tenant = client.sqlite.prepare("SELECT id FROM tenants LIMIT 1").get() as
+      | { id?: string }
+      | undefined;
+
+    if (!tenant?.id) {
+      throw new Error("No tenant exists. Create a local admin user first.");
+    }
+
+    return tenant.id;
+  } finally {
+    client.close();
+  }
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ uuid: string }> }) {
   const auth = requirePermissionRequest(request, "drafts:approve");
@@ -21,7 +48,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ uui
       overrideContextSafeguards?: boolean;
     };
     const overrideContextSafeguards = payload.overrideContextSafeguards === true;
-    const result = await approveImessageDraft(uuid, { overrideContextSafeguards });
+    const result = await approveImessageDraft(uuid, {
+      overrideContextSafeguards,
+      tenantId: defaultTenantId(auth.session.user.id),
+    });
 
     writeRouteDraftMutationAudit({
       action: "draft.approve",
