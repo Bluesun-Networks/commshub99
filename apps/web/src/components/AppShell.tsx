@@ -158,6 +158,7 @@ type RouteState = {
   contextFocus?: ContextFocus;
   conversationContextId?: string;
   conversationId?: string;
+  conversationService?: string;
   view: View;
 };
 type ReviewWindowId = "day" | "48h" | "week" | "month" | "year";
@@ -219,24 +220,48 @@ function viewPath(view: View) {
   return view === "overview" ? "/overview" : `/${view}`;
 }
 
-function contactPath(contactId: string) {
-  return `/contacts/${pathSegment(contactId)}`;
+function routeKey(value: string) {
+  return value.trim().replace(/\s+/g, "-") || value;
 }
 
-function contactContextPath(contactId: string) {
-  return `${contactPath(contactId)}/context`;
+function contactRouteKey(contact: Contact) {
+  return routeKey(contact.displayName || contact.id);
 }
 
-function contactConversationsPath(contactId: string) {
-  return `${contactPath(contactId)}/conversations`;
+function contactPath(contact: Contact) {
+  return `/contacts/${pathSegment(contactRouteKey(contact))}`;
 }
 
-function conversationPath(conversationId: string) {
-  return `/conversations/${pathSegment(conversationId)}`;
+function contactContextPath(contact: Contact) {
+  return `${contactPath(contact)}/context`;
 }
 
-function conversationContextPath(conversationId: string) {
-  return `${conversationPath(conversationId)}/context`;
+function contactConversationsPath(contact: Contact) {
+  return `${contactPath(contact)}/conversations`;
+}
+
+function conversationRouteService(conversation: Conversation) {
+  return conversation.id.split(":")[0] || conversation.channel.toLowerCase() || "conversation";
+}
+
+function conversationRouteKey(conversation: Conversation) {
+  const [, resourceType, resourceId] = conversation.id.split(":");
+
+  if (resourceType === "chat" && resourceId) {
+    return resourceId;
+  }
+
+  return routeKey(conversation.contact || conversationRoomKey(conversation));
+}
+
+function conversationPath(conversation: Conversation) {
+  return `/conversations/${pathSegment(conversationRouteService(conversation))}/${pathSegment(
+    conversationRouteKey(conversation),
+  )}`;
+}
+
+function conversationContextPath(conversation: Conversation) {
+  return `${conversationPath(conversation)}/context`;
 }
 
 function contactContextRecordPath(contactKey: string) {
@@ -271,15 +296,24 @@ function EntityLink({
 
 function routeFromPath(pathname: string): RouteState {
   const cleanPath = pathname.split("?")[0] ?? "";
-  const [root, id, action] = cleanPath.split("/").filter(Boolean).map(readPathSegment);
+  const [root, id, action, detail] = cleanPath.split("/").filter(Boolean).map(readPathSegment);
 
   if (root === "conversations") {
-    const conversationId = id;
+    if (id && action) {
+      return detail === "context"
+        ? {
+            conversationContextId: action,
+            conversationId: action,
+            conversationService: id,
+            view: "context",
+          }
+        : { conversationId: action, conversationService: id, view: "conversations" };
+    }
 
-    return action === "context" && conversationId
-      ? { conversationContextId: conversationId, conversationId, view: "context" }
-      : conversationId
-        ? { conversationId, view: "conversations" }
+    return action === "context" && id
+      ? { conversationContextId: id, conversationId: id, view: "context" }
+      : id
+        ? { conversationId: id, view: "conversations" }
         : { view: "conversations" };
   }
 
@@ -334,8 +368,64 @@ function routeFromPath(pathname: string): RouteState {
   return { view: "overview" };
 }
 
-function conversationRouteId(conversation: Conversation) {
-  return conversation.id;
+function looseRouteKey(value: string | undefined) {
+  return normalizeIdentifier(readPathSegment(value)?.replace(/-/g, " ") ?? "");
+}
+
+function routeKeyMatches(locator: string | undefined, ...candidates: Array<string | undefined>) {
+  if (!locator) {
+    return false;
+  }
+
+  const decodedLocator = readPathSegment(locator) ?? locator;
+  const normalizedLocator = looseRouteKey(locator);
+
+  return candidates.some((candidate) => {
+    if (!candidate) {
+      return false;
+    }
+
+    return (
+      candidate === decodedLocator ||
+      routeKey(candidate) === decodedLocator ||
+      normalizeIdentifier(candidate) === normalizedLocator ||
+      looseRouteKey(candidate) === normalizedLocator
+    );
+  });
+}
+
+function resolveContactRoute(locator: string | undefined, contacts: Contact[]) {
+  return contacts.find((contact) =>
+    routeKeyMatches(
+      locator,
+      contact.id,
+      contact.displayName,
+      contactRouteKey(contact),
+      ...contact.phonePoints.map((point) => point.value),
+      ...contact.emailPoints.map((point) => point.value),
+    ),
+  );
+}
+
+function resolveConversationRoute(
+  locator: string | undefined,
+  conversations: Conversation[],
+  service?: string,
+) {
+  return conversations.find((conversation) => {
+    if (service && conversationRouteService(conversation) !== service) {
+      return false;
+    }
+
+    return routeKeyMatches(
+      locator,
+      conversation.id,
+      conversationRouteKey(conversation),
+      conversationRoomKey(conversation),
+      conversation.contact,
+      conversation.handle,
+    );
+  });
 }
 
 function conversationRoomKey(conversation: Conversation) {
@@ -835,6 +925,31 @@ export function AppShell({
   const [contextLoading, setContextLoading] = useState(true);
   const [contextFocus, setContextFocus] = useState<ContextFocus | null>(null);
   const [conversationFocus, setConversationFocus] = useState<ConversationFocus | null>(null);
+  const routeContact = useMemo(
+    () => resolveContactRoute(route.contactId, contacts),
+    [contacts, route.contactId],
+  );
+  const routeContactContext = useMemo(
+    () => resolveContactRoute(route.contactContextId, contacts),
+    [contacts, route.contactContextId],
+  );
+  const routeContactConversations = useMemo(
+    () => resolveContactRoute(route.contactConversationsId, contacts),
+    [contacts, route.contactConversationsId],
+  );
+  const routeConversation = useMemo(
+    () => resolveConversationRoute(route.conversationId, conversations, route.conversationService),
+    [conversations, route.conversationId, route.conversationService],
+  );
+  const routeConversationContext = useMemo(
+    () =>
+      resolveConversationRoute(
+        route.conversationContextId,
+        conversations,
+        route.conversationService,
+      ),
+    [conversations, route.conversationContextId, route.conversationService],
+  );
 
   const navigateTo = useCallback(
     (path: string) => {
@@ -908,7 +1023,7 @@ export function AppShell({
         type: "contact",
       });
       setActiveView("context");
-      navigateTo(contactContextPath(contact.id));
+      navigateTo(contactContextPath(contact));
     },
     [navigateTo],
   );
@@ -922,7 +1037,7 @@ export function AppShell({
         type: "conversation",
       });
       setActiveView("context");
-      navigateTo(conversationContextPath(conversationRouteId(conversation)));
+      navigateTo(conversationContextPath(conversation));
     },
     [navigateTo],
   );
@@ -938,30 +1053,42 @@ export function AppShell({
         token: Date.now(),
       });
       setActiveView("conversations");
-      navigateTo(contactConversationsPath(contact.id));
+      navigateTo(contactConversationsPath(contact));
     },
     [navigateTo],
   );
 
   const openContact = useCallback(
     (contactId: string) => {
-      navigateTo(contactPath(contactId));
+      const contact = resolveContactRoute(contactId, contacts);
+
+      navigateTo(contact ? contactPath(contact) : `/contacts/${pathSegment(contactId)}`);
     },
-    [navigateTo],
+    [contacts, navigateTo],
   );
 
   const openContactTopicsRoute = useCallback(
     (contactId: string) => {
-      navigateTo(`${contactPath(contactId)}/topics`);
+      const contact = resolveContactRoute(contactId, contacts);
+
+      navigateTo(
+        contact ? `${contactPath(contact)}/topics` : `/contacts/${pathSegment(contactId)}/topics`,
+      );
     },
-    [navigateTo],
+    [contacts, navigateTo],
   );
 
   const openConversation = useCallback(
     (conversationId: string) => {
-      navigateTo(conversationPath(conversationId));
+      const conversation = resolveConversationRoute(conversationId, conversations);
+
+      navigateTo(
+        conversation
+          ? conversationPath(conversation)
+          : `/conversations/${pathSegment(conversationId)}`,
+      );
     },
-    [navigateTo],
+    [conversations, navigateTo],
   );
 
   useEffect(() => {
@@ -974,48 +1101,53 @@ export function AppShell({
 
   useEffect(() => {
     if (route.contactConversationsId) {
-      const contact = contacts.find((item) => item.id === route.contactConversationsId);
-
       setConversationFocus({
         query:
-          contact?.displayName ||
-          contact?.phonePoints[0]?.value ||
-          contact?.emailPoints[0]?.value ||
+          routeContactConversations?.displayName ||
+          routeContactConversations?.phonePoints[0]?.value ||
+          routeContactConversations?.emailPoints[0]?.value ||
           route.contactConversationsId,
         token: Date.now(),
       });
     }
 
     if (route.contactContextId) {
-      const contact = contacts.find((item) => item.id === route.contactContextId);
-      const key = contact ? contactContextKey(contact) : route.contactContextId;
+      const key = routeContactContext
+        ? contactContextKey(routeContactContext)
+        : route.contactContextId;
 
       if (key) {
         setContextFocus({
           contactKey: key,
-          displayName: contact?.displayName ?? route.contactContextId,
+          displayName: routeContactContext?.displayName ?? route.contactContextId,
           token: Date.now(),
           type: "contact",
         });
       }
     }
-  }, [contacts, route.contactContextId, route.contactConversationsId]);
+  }, [
+    route.contactContextId,
+    route.contactConversationsId,
+    routeContactContext,
+    routeContactConversations,
+  ]);
 
   useEffect(() => {
     if (!route.conversationContextId) {
       return;
     }
 
-    const conversation = conversations.find((item) => item.id === route.conversationContextId);
-    const roomKey = conversation ? conversationRoomKey(conversation) : route.conversationContextId;
+    const roomKey = routeConversationContext
+      ? conversationRoomKey(routeConversationContext)
+      : route.conversationContextId;
 
     setContextFocus({
-      displayName: conversation?.contact ?? route.conversationContextId,
+      displayName: routeConversationContext?.contact ?? route.conversationContextId,
       roomKey,
       token: Date.now(),
       type: "conversation",
     });
-  }, [conversations, route.conversationContextId]);
+  }, [route.conversationContextId, routeConversationContext]);
 
   useEffect(() => {
     const savedMode = window.localStorage.getItem("commshub99:mode");
@@ -1290,13 +1422,14 @@ export function AppShell({
         ) : null}
         {activeView === "conversations" ? (
           <Conversations
+            contacts={contacts}
             conversations={conversations}
             error={conversationError}
             focus={conversationFocus}
             loading={conversationsLoading}
             onOpenConversationContext={openConversationContext}
             onSelectConversation={openConversation}
-            selectedConversationId={route.conversationId}
+            selectedConversationId={routeConversation?.id}
           />
         ) : null}
         {activeView === "contacts" ? (
@@ -1309,7 +1442,7 @@ export function AppShell({
             onOpenContactConversations={openContactConversations}
             onOpenContactTopics={openContactTopicsRoute}
             onSelectContact={openContact}
-            selectedContactId={route.contactId}
+            selectedContactId={routeContact?.id}
           />
         ) : null}
         {activeView === "approvals" ? (
@@ -1428,6 +1561,7 @@ function Overview({
 }
 
 function Conversations({
+  contacts,
   conversations,
   error,
   focus,
@@ -1436,6 +1570,7 @@ function Conversations({
   onSelectConversation,
   selectedConversationId,
 }: {
+  contacts: Contact[];
   conversations: Conversation[];
   error: string | null;
   focus: ConversationFocus | null;
@@ -1491,6 +1626,15 @@ function Conversations({
   const selectedConversation =
     filteredConversations.find((conversation) => conversation.id === selectedId) ??
     filteredConversations[0];
+  const selectedLinkedContact = selectedConversation?.linkedContact
+    ? (resolveContactRoute(selectedConversation.linkedContact.id, contacts) ??
+      resolveContactRoute(selectedConversation.linkedContact.name, contacts))
+    : undefined;
+  const selectedLinkedContactPath = selectedConversation?.linkedContact
+    ? selectedLinkedContact
+      ? contactPath(selectedLinkedContact)
+      : `/contacts/${pathSegment(routeKey(selectedConversation.linkedContact.name))}`
+    : undefined;
 
   return (
     <section className="content-band" aria-labelledby="conversations-heading">
@@ -1575,8 +1719,8 @@ function Conversations({
                 <div className="conversation-detail-header">
                   <span>
                     <strong>
-                      {selectedConversation.linkedContact ? (
-                        <EntityLink href={contactPath(selectedConversation.linkedContact.id)}>
+                      {selectedLinkedContactPath ? (
+                        <EntityLink href={selectedLinkedContactPath}>
                           {selectedConversation.contact}
                         </EntityLink>
                       ) : (
@@ -1589,10 +1733,10 @@ function Conversations({
                     </span>
                   </span>
                   <div className="detail-actions">
-                    {selectedConversation.linkedContact ? (
+                    {selectedConversation.linkedContact && selectedLinkedContactPath ? (
                       <span className="linked-contact-pill">
                         Linked to{" "}
-                        <EntityLink href={contactPath(selectedConversation.linkedContact.id)}>
+                        <EntityLink href={selectedLinkedContactPath}>
                           {selectedConversation.linkedContact.name}
                         </EntityLink>
                       </span>
@@ -2308,7 +2452,7 @@ function Contacts({
                     <span>Linked conversations</span>
                     <strong>
                       {activeContact.conversationCount > 0 ? (
-                        <EntityLink href={contactConversationsPath(activeContact.id)}>
+                        <EntityLink href={contactConversationsPath(activeContact)}>
                           {activeContact.conversationCount}
                         </EntityLink>
                       ) : (
@@ -2524,7 +2668,7 @@ function Contacts({
                         Conversation links
                         <strong>
                           {activeContact.conversationCount > 0 ? (
-                            <EntityLink href={contactConversationsPath(activeContact.id)}>
+                            <EntityLink href={contactConversationsPath(activeContact)}>
                               {activeContact.conversationCount}
                             </EntityLink>
                           ) : (
@@ -3083,11 +3227,11 @@ function Approvals({
                   <span>
                     <strong>
                       {recipientContact ? (
-                        <EntityLink href={contactPath(recipientContact.id)}>
+                        <EntityLink href={contactPath(recipientContact)}>
                           {recipient.name}
                         </EntityLink>
                       ) : recipientConversation ? (
-                        <EntityLink href={conversationPath(recipientConversation.id)}>
+                        <EntityLink href={conversationPath(recipientConversation)}>
                           {recipient.name}
                         </EntityLink>
                       ) : (
@@ -3120,7 +3264,7 @@ function Approvals({
                   {recipientConversation ? (
                     <EntityLink
                       className="ghost-button entity-button-link"
-                      href={conversationPath(recipientConversation.id)}
+                      href={conversationPath(recipientConversation)}
                     >
                       <MessageCircle aria-hidden size={16} />
                       Conversation
@@ -3139,7 +3283,7 @@ function Approvals({
                   {recipientContact ? (
                     <EntityLink
                       className="ghost-button entity-button-link"
-                      href={contactPath(recipientContact.id)}
+                      href={contactPath(recipientContact)}
                     >
                       <UsersRound aria-hidden size={16} />
                       Contact
@@ -3162,7 +3306,7 @@ function Approvals({
                     <dt>Chat</dt>
                     <dd>
                       {recipientConversation ? (
-                        <EntityLink href={conversationPath(recipientConversation.id)}>
+                        <EntityLink href={conversationPath(recipientConversation)}>
                           {draft.chatId}
                         </EntityLink>
                       ) : (
@@ -3543,13 +3687,13 @@ function ContextView({
     if (suggestion.contextType === "contact") {
       const contact = contactByContextKey(suggestion.targetKey);
 
-      return contact ? { href: contactPath(contact.id), label: "Contact" } : null;
+      return contact ? { href: contactPath(contact), label: "Contact" } : null;
     }
 
     const roomKey = suggestion.targetKey.replace(/^imessage:/, "");
     const conversation = conversationByRoomKey(roomKey);
 
-    return conversation ? { href: conversationPath(conversation.id), label: "Conversation" } : null;
+    return conversation ? { href: conversationPath(conversation), label: "Conversation" } : null;
   }
 
   useEffect(() => {
@@ -3834,7 +3978,7 @@ function ContextView({
                 <span>
                   <strong>
                     {selectedContact ? (
-                      <EntityLink href={contactPath(selectedContact.id)}>
+                      <EntityLink href={contactPath(selectedContact)}>
                         {selectedContact.displayName}
                       </EntityLink>
                     ) : (
@@ -3903,7 +4047,7 @@ function ContextView({
                 onSave={() => void saveContext("contact", contactDraft)}
                 onToggleDetail={(detail) => toggleDetail(contactDraft, setContactDraft, detail)}
                 linkedName={selectedContact?.displayName}
-                linkedHref={selectedContact ? contactPath(selectedContact.id) : undefined}
+                linkedHref={selectedContact ? contactPath(selectedContact) : undefined}
                 title="Contact Defaults"
               />
             </div>
@@ -3920,7 +4064,7 @@ function ContextView({
                 }
                 linkedName={selectedConversation?.contact}
                 linkedHref={
-                  selectedConversation ? conversationPath(selectedConversation.id) : undefined
+                  selectedConversation ? conversationPath(selectedConversation) : undefined
                 }
                 title="Conversation Override"
               />
@@ -3933,7 +4077,7 @@ function ContextView({
               relatedLinkFor={(record) => {
                 const contact = contactByContextKey(record.contactKey);
 
-                return contact ? { href: contactPath(contact.id), label: "Contact" } : null;
+                return contact ? { href: contactPath(contact), label: "Contact" } : null;
               }}
               onEdit={(record) => {
                 setContactDraft(record);
@@ -3948,7 +4092,7 @@ function ContextView({
                 const conversation = conversationByRoomKey(record.roomKey);
 
                 return conversation
-                  ? { href: conversationPath(conversation.id), label: "Conversation" }
+                  ? { href: conversationPath(conversation), label: "Conversation" }
                   : null;
               }}
               onEdit={(record) => {
