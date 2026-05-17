@@ -280,6 +280,14 @@ function conversationPath(conversation: Conversation) {
   )}`;
 }
 
+function pushBrowserPath(path: string) {
+  if (typeof window === "undefined" || window.location.pathname === path) {
+    return;
+  }
+
+  window.history.pushState(null, "", path);
+}
+
 function conversationContextPath(conversation: Conversation) {
   return `${conversationPath(conversation)}/context`;
 }
@@ -1148,13 +1156,14 @@ export function AppShell({
     (conversationId: string) => {
       const conversation = resolveConversationRoute(conversationId, conversations);
 
-      navigateTo(
+      setActiveView("conversations");
+      pushBrowserPath(
         conversation
           ? conversationPath(conversation)
           : `/conversations/${pathSegment(conversationId)}`,
       );
     },
-    [conversations, navigateTo],
+    [conversations],
   );
 
   useEffect(() => {
