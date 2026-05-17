@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { listImessageContactConversationCounts } from "@commshub99/adapter-imessage";
+import { selfPerspectiveFromUser } from "@commshub99/core";
 import {
   ContactsMcpClientError,
   type ContactsMcpContact,
@@ -53,8 +54,7 @@ export async function GET(request: Request) {
   }
 
   const { conversationCounts, databasePath, error } = listImessageContactConversationCounts({
-    selfIdentifiers: [auth.session.user.email, auth.session.user.id],
-    selfNames: [auth.session.user.name],
+    self: selfPerspectiveFromUser(auth.session.user),
   });
 
   if (error) {

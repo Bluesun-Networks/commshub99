@@ -80,7 +80,12 @@ describe("iMessage contact conversation counts", () => {
     createDatabase();
 
     const result = listImessageContactConversationCounts({
-      selfNames: ["Jon Zobrist"],
+      self: {
+        displayName: "Jon Zobrist",
+        identifiers: ["user-1"],
+        names: ["Jon Zobrist"],
+        userId: "user-1",
+      },
     });
 
     expect(result.error).toBeNull();

@@ -43,7 +43,12 @@ afterEach(() => {
 describe("iMessage conversations", () => {
   it("maps fixture conversations and recent messages from the temp database", () => {
     const result = listImessageConversations({
-      selfNames: ["Jon Zobrist"],
+      self: {
+        displayName: "Jon Zobrist",
+        identifiers: ["user-1"],
+        names: ["Jon Zobrist"],
+        userId: "user-1",
+      },
     });
 
     expect(result.error).toBeNull();

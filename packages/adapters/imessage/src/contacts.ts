@@ -2,7 +2,11 @@
 import { existsSync } from "node:fs";
 import Database from "better-sqlite3";
 import { resolveImessageDatabasePath } from "./paths.js";
-import { type ImessagePerspective, normalizedPerspectiveValues } from "./perspective.js";
+import {
+  type ImessagePerspective,
+  selfIdentifiersForPerspective,
+  selfNamesForPerspective,
+} from "./perspective.js";
 
 type ContactConversationCountRow = {
   contact_id: string;
@@ -30,8 +34,8 @@ export function listImessageContactConversationCounts(options: ImessagePerspecti
   });
 
   try {
-    const selfIdentifiers = normalizedPerspectiveValues(options.selfIdentifiers);
-    const selfNames = normalizedPerspectiveValues(options.selfNames);
+    const selfIdentifiers = selfIdentifiersForPerspective(options);
+    const selfNames = selfNamesForPerspective(options);
     const rows = sqlite
       .prepare(`
         SELECT

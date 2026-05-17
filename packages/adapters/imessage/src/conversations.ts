@@ -4,7 +4,11 @@ import type { Conversation } from "@commshub99/core";
 import Database from "better-sqlite3";
 import { displayDate, normalizeMessageText } from "./format.js";
 import { resolveImessageDatabasePath } from "./paths.js";
-import { type ImessagePerspective, normalizedPerspectiveValues } from "./perspective.js";
+import {
+  type ImessagePerspective,
+  selfIdentifiersForPerspective,
+  selfNamesForPerspective,
+} from "./perspective.js";
 
 type ConversationRow = {
   chat_id: number;
@@ -68,8 +72,8 @@ export function listImessageConversations(options: ImessagePerspective = {}): {
   });
 
   try {
-    const selfIdentifiers = normalizedPerspectiveValues(options.selfIdentifiers);
-    const selfNames = normalizedPerspectiveValues(options.selfNames);
+    const selfIdentifiers = selfIdentifiersForPerspective(options);
+    const selfNames = selfNamesForPerspective(options);
     const selfMatchSql = `(
       lower(coalesce(ccm.contact_id, '')) IN (${placeholderList(selfIdentifiers)})
       OR lower(coalesce(contacts.full_name, '')) IN (${placeholderList(selfNames)})
