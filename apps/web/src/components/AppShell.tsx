@@ -147,6 +147,11 @@ type ContextFocus =
       type: "conversation";
     };
 type ConversationFocus = {
+  contact?: {
+    id: string;
+    identifiers: string[];
+    name: string;
+  };
   query: string;
   selectedId?: string;
   token: number;
@@ -863,11 +868,24 @@ function contactContextKey(contact: Contact) {
 function contactContextKeyOptions(contact: Contact) {
   return [
     contact.id,
+    contact.displayName,
     ...contact.phonePoints.map((point) => point.value),
     ...contact.emailPoints.map((point) => point.value),
   ]
     .filter(Boolean)
     .map((value) => normalizeIdentifier(value) || value);
+}
+
+function conversationFocusForContact(contact: Contact): ConversationFocus {
+  return {
+    contact: {
+      id: contact.id,
+      identifiers: contactContextKeyOptions(contact),
+      name: contact.displayName,
+    },
+    query: "",
+    token: Date.now(),
+  };
 }
 
 function shortIdentifier(value: string) {
@@ -1079,14 +1097,7 @@ export function AppShell({
 
   const openContactConversations = useCallback(
     (contact: Contact) => {
-      setConversationFocus({
-        query:
-          contact.displayName ||
-          contact.phonePoints[0]?.value ||
-          contact.emailPoints[0]?.value ||
-          contact.id,
-        token: Date.now(),
-      });
+      setConversationFocus(conversationFocusForContact(contact));
       setActiveView("conversations");
       navigateTo(contactConversationsPath(contact));
     },
@@ -1136,14 +1147,11 @@ export function AppShell({
 
   useEffect(() => {
     if (route.contactConversationsId) {
-      setConversationFocus({
-        query:
-          routeContactConversations?.displayName ||
-          routeContactConversations?.phonePoints[0]?.value ||
-          routeContactConversations?.emailPoints[0]?.value ||
-          route.contactConversationsId,
-        token: Date.now(),
-      });
+      setConversationFocus(
+        routeContactConversations
+          ? conversationFocusForContact(routeContactConversations)
+          : { query: route.contactConversationsId, token: Date.now() },
+      );
     }
 
     if (route.contactContextId) {
@@ -1616,6 +1624,8 @@ function Conversations({
 }) {
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [query, setQuery] = useState("");
+  const [clearedFocusToken, setClearedFocusToken] = useState<number | null>(null);
+  const activeFocus = focus && focus.token !== clearedFocusToken ? focus : null;
 
   useEffect(() => {
     if (selectedConversationId) {
@@ -1635,23 +1645,40 @@ function Conversations({
   }, [conversations, selectedId]);
 
   useEffect(() => {
-    if (!focus) {
+    if (!activeFocus) {
       return;
     }
 
-    setQuery(focus.query);
+    setQuery(activeFocus.contact ? "" : activeFocus.query);
 
-    if (focus.selectedId) {
-      setSelectedId(focus.selectedId);
+    if (activeFocus.selectedId) {
+      setSelectedId(activeFocus.selectedId);
     }
-  }, [focus]);
+  }, [activeFocus]);
 
   const filteredConversations = conversations.filter((conversation) => {
+    if (activeFocus?.contact) {
+      const identifiers = new Set(activeFocus.contact.identifiers);
+      const conversationIdentifiers = [
+        conversation.id,
+        conversation.contact,
+        conversation.handle,
+        conversation.linkedContact?.id,
+        conversation.linkedContact?.name,
+      ]
+        .filter((value): value is string => !!value)
+        .flatMap((value) => [value, normalizeIdentifier(value) || value]);
+
+      return conversationIdentifiers.some((identifier) => identifiers.has(identifier));
+    }
+
     const searchableText = [
       conversation.channel,
       conversation.contact,
       conversation.handle,
       conversation.lastMessage,
+      conversation.linkedContact?.id,
+      conversation.linkedContact?.name,
     ]
       .join(" ")
       .toLowerCase();
@@ -1685,10 +1712,13 @@ function Conversations({
           <Search aria-hidden size={18} />
           <span className="sr-only">Search conversations</span>
           <input
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setClearedFocusToken(focus?.token ?? null);
+              setQuery(event.target.value);
+            }}
             placeholder="Search name, handle, or message"
             type="search"
-            value={query}
+            value={activeFocus?.contact ? activeFocus.contact.name : query}
           />
         </label>
       </div>
