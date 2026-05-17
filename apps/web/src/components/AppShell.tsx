@@ -221,7 +221,14 @@ function viewPath(view: View) {
 }
 
 function routeKey(value: string) {
-  return value.trim().replace(/\s+/g, "-") || value;
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/['’]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || value
+  );
 }
 
 function contactRouteKey(contact: Contact) {
@@ -264,12 +271,16 @@ function conversationContextPath(conversation: Conversation) {
   return `${conversationPath(conversation)}/context`;
 }
 
-function contactContextRecordPath(contactKey: string) {
-  return `/context/contact/${pathSegment(contactKey)}`;
+function contactContextRecordPath(record: ContextRecordView) {
+  return `/context/contacts/${pathSegment(contextRecordRouteKey(record))}`;
 }
 
-function conversationContextRecordPath(roomKey: string) {
-  return `/context/conversation/${pathSegment(roomKey)}`;
+function conversationContextRecordPath(record: ContextRecordView) {
+  const service = record.channelId || "conversation";
+
+  return `/context/conversations/${pathSegment(service)}/${pathSegment(
+    contextRecordRouteKey(record),
+  )}`;
 }
 
 function EntityLink({
@@ -343,11 +354,35 @@ function routeFromPath(pathname: string): RouteState {
     };
   }
 
+  if (root === "context" && id === "contacts" && action) {
+    return {
+      contextFocus: {
+        contactKey: action,
+        displayName: action,
+        token: Date.now(),
+        type: "contact",
+      },
+      view: "context",
+    };
+  }
+
   if (root === "context" && id === "conversation" && action) {
     return {
       contextFocus: {
         displayName: action,
         roomKey: action,
+        token: Date.now(),
+        type: "conversation",
+      },
+      view: "context",
+    };
+  }
+
+  if (root === "context" && id === "conversations" && action) {
+    return {
+      contextFocus: {
+        displayName: detail ?? action,
+        roomKey: detail ?? action,
         token: Date.now(),
         type: "conversation",
       },
@@ -2717,18 +2752,33 @@ function Contacts({
 
 function contextRecordHref(record: ContextRecordView) {
   if (record.contactKey) {
-    return contactContextRecordPath(record.contactKey);
+    return contactContextRecordPath(record);
   }
 
   if (record.roomKey) {
-    return conversationContextRecordPath(record.roomKey);
+    return conversationContextRecordPath(record);
   }
 
   return "/context";
 }
 
+function contextRecordRouteKey(record: ContextRecordView) {
+  return routeKey(contextRecordLabel(record));
+}
+
 function contextRecordLabel(record: ContextRecordView) {
   return record.displayName || record.contactKey || record.roomKey || shortIdentifier(record.id);
+}
+
+function contextRecordMatches(record: ContextRecordView, locator: string | undefined) {
+  return routeKeyMatches(
+    locator,
+    record.id,
+    record.displayName,
+    record.contactKey,
+    record.roomKey,
+    contextRecordRouteKey(record),
+  );
 }
 
 function ContextProfileLinks({
@@ -3761,15 +3811,19 @@ function ContextView({
     }
 
     if (focus.type === "contact") {
-      const existing = data.contactContexts.find(
-        (record) => record.contactKey === focus.contactKey,
+      const existing = data.contactContexts.find((record) =>
+        contextRecordMatches(record, focus.contactKey),
       );
+      const resolvedContact =
+        (existing ? contactByContextKey(existing.contactKey) : null) ??
+        resolveContactRoute(focus.contactKey, contacts);
+      const resolvedContactKey = resolvedContact ? contactContextKey(resolvedContact) : undefined;
 
       setContactDraft(
         existing ?? {
           ...defaultContextDraft("contact"),
-          contactKey: focus.contactKey,
-          displayName: focus.displayName,
+          contactKey: resolvedContactKey ?? focus.contactKey,
+          displayName: resolvedContact?.displayName ?? focus.displayName,
           tenantId: data.tenantId,
         },
       );
@@ -3777,19 +3831,24 @@ function ContextView({
     }
 
     const existing = data.conversationContexts.find(
-      (record) => record.channelId === "imessage" && record.roomKey === focus.roomKey,
+      (record) =>
+        (record.channelId === "imessage" || !record.channelId) &&
+        contextRecordMatches(record, focus.roomKey),
     );
+    const resolvedConversation =
+      (existing ? conversationByRoomKey(existing.roomKey) : null) ??
+      resolveConversationRoute(focus.roomKey, conversations);
 
     setConversationDraft(
       existing ?? {
         ...defaultContextDraft("conversation"),
         channelId: "imessage",
-        displayName: focus.displayName,
-        roomKey: focus.roomKey,
+        displayName: resolvedConversation?.contact ?? focus.displayName,
+        roomKey: resolvedConversation ? conversationRoomKey(resolvedConversation) : focus.roomKey,
         tenantId: data.tenantId,
       },
     );
-  }, [data, focus]);
+  }, [contactByContextKey, contacts, conversationByRoomKey, conversations, data, focus]);
 
   async function saveContext(scope: "contact" | "conversation", draft: ContextRecordView) {
     setActionError(null);
