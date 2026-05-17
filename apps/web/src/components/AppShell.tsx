@@ -94,6 +94,7 @@ type ContextRecordView = {
   contactKey?: string;
   customPersonalDetails: string[];
   customPrompt: string;
+  deliveryService: string;
   displayName: string;
   id: string;
   notes: string;
@@ -203,6 +204,13 @@ const contextRelationships = ["family", "friend", "professional", "service", "un
 const contextTones = ["polite", "warm", "direct", "terse", "avoid_rude"];
 const contextReplyPostures = ["do_not_reply", "reply_if_needed", "usually_reply", "always_reply"];
 const contextSignatureModes = ["inherit", "append", "override"];
+const contextDeliveryServices = ["inherit", "auto", "imessage", "sms"];
+const contextDeliveryLabels: Record<string, string> = {
+  auto: "Auto",
+  imessage: "iMessage",
+  inherit: "Inherit",
+  sms: "SMS",
+};
 const personalDetailChoices = ["location", "health_updates", "daily_agenda", "family_updates"];
 
 function pathSegment(value: string) {
@@ -3118,6 +3126,7 @@ function Approvals({
           draft.displaySourceMessageAt,
           draft.sourceRowid,
           draft.context?.replyPosture,
+          draft.context?.deliveryService,
           draft.context?.signature,
           draft.context?.tone,
           draft.context?.contextVersionIds.join(" "),
@@ -3423,6 +3432,10 @@ function Approvals({
                         <dd>{draft.context.tone}</dd>
                       </div>
                       <div>
+                        <dt>Delivery</dt>
+                        <dd>{contextDeliveryLabels[draft.context.deliveryService] ?? "Auto"}</dd>
+                      </div>
+                      <div>
                         <dt>Profiles</dt>
                         <dd>
                           <ContextProfileLinks
@@ -3662,6 +3675,7 @@ function defaultContextDraft(scope: "contact" | "conversation"): ContextRecordVi
     allowedPersonalDetails: [],
     customPersonalDetails: [],
     customPrompt: "",
+    deliveryService: scope === "conversation" ? "inherit" : "auto",
     displayName: "",
     id: "",
     notes: "",
@@ -4384,6 +4398,21 @@ function ContextEditor({
         </label>
       </div>
       <div className="context-choice-row">
+        <label>
+          <span>Delivery</span>
+          <select
+            onChange={(event) => onChange({ ...draft, deliveryService: event.target.value })}
+            value={draft.deliveryService}
+          >
+            {contextDeliveryServices
+              .filter((choice) => keyField === "roomKey" || choice !== "inherit")
+              .map((choice) => (
+                <option key={choice} value={choice}>
+                  {contextDeliveryLabels[choice] ?? choice}
+                </option>
+              ))}
+          </select>
+        </label>
         <label>
           <span>Signature mode</span>
           <select

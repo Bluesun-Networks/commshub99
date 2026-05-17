@@ -74,6 +74,10 @@ function contextFromMeta(meta: Map<string, string>, tenantId = ""): DraftContext
     conversationContextId,
     customPersonalDetails: stringList(meta.get("context_custom_personal_details")),
     customPrompt: meta.get("context_custom_prompt") ?? "",
+    deliveryService:
+      (meta.get("context_delivery_service") as
+        | DraftContextSnapshot["deliveryService"]
+        | undefined) ?? "auto",
     notes: meta.get("context_notes") ?? "",
     replyPosture:
       (meta.get("context_reply_posture") as DraftContextSnapshot["replyPosture"] | undefined) ??

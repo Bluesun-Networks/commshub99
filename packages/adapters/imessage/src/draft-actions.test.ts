@@ -69,12 +69,16 @@ Hello there
 }
 
 function seedContextDb({
+  contactDeliveryService = "auto",
   contactSignatureMode = "inherit",
   contactSignatureValue = "",
+  conversationDeliveryService = "inherit",
   globalSignature = "",
 }: {
+  contactDeliveryService?: "auto" | "imessage" | "sms";
   contactSignatureMode?: "inherit" | "append" | "override";
   contactSignatureValue?: string;
+  conversationDeliveryService?: "inherit" | "auto" | "imessage" | "sms";
   globalSignature?: string;
 }) {
   const sqlite = new Database(process.env.COMMSHUB99_DB_PATH ?? join(tempDir, "hub.db"));
@@ -99,6 +103,7 @@ function seedContextDb({
         notes text DEFAULT '' NOT NULL,
         signature_mode text DEFAULT 'inherit' NOT NULL,
         signature_value text DEFAULT '' NOT NULL,
+        delivery_service text DEFAULT 'auto' NOT NULL,
         allowed_personal_details_json text DEFAULT '[]' NOT NULL,
         custom_personal_details_json text DEFAULT '[]' NOT NULL,
         created_at integer NOT NULL,
@@ -117,6 +122,7 @@ function seedContextDb({
         notes text DEFAULT '' NOT NULL,
         signature_mode text DEFAULT 'inherit' NOT NULL,
         signature_value text DEFAULT '' NOT NULL,
+        delivery_service text DEFAULT 'inherit' NOT NULL,
         allowed_personal_details_json text DEFAULT '[]' NOT NULL,
         custom_personal_details_json text DEFAULT '[]' NOT NULL,
         created_at integer NOT NULL,
@@ -144,7 +150,11 @@ function seedContextDb({
       )
       .run(globalSignature);
 
-    if (contactSignatureValue || contactSignatureMode !== "inherit") {
+    if (
+      contactSignatureValue ||
+      contactSignatureMode !== "inherit" ||
+      contactDeliveryService !== "auto"
+    ) {
       sqlite
         .prepare(
           `INSERT INTO contact_contexts (
@@ -153,11 +163,28 @@ function seedContextDb({
             contact_key,
             signature_mode,
             signature_value,
+            delivery_service,
             created_at,
             updated_at
-          ) VALUES ('contact-context-1', 'tenant-1', '+15551234567', ?, ?, 1, 1)`,
+          ) VALUES ('contact-context-1', 'tenant-1', '+15551234567', ?, ?, ?, 1, 1)`,
         )
-        .run(contactSignatureMode, contactSignatureValue);
+        .run(contactSignatureMode, contactSignatureValue, contactDeliveryService);
+    }
+
+    if (conversationDeliveryService !== "inherit") {
+      sqlite
+        .prepare(
+          `INSERT INTO conversation_contexts (
+            id,
+            tenant_id,
+            channel_id,
+            room_key,
+            delivery_service,
+            created_at,
+            updated_at
+          ) VALUES ('conversation-context-1', 'tenant-1', 'imessage', '7', ?, 1, 1)`,
+        )
+        .run(conversationDeliveryService);
     }
   } finally {
     sqlite.close();
@@ -222,6 +249,30 @@ describe("iMessage draft actions", () => {
     expect(outbox).toContain("Hello there\n\n- Contact signature\n");
     expect(outbox).toContain('context_signature: "- Contact signature"');
     expect(outbox).not.toContain("- Global signature");
+  });
+
+  it("uses contact delivery service when approving", async () => {
+    writeDraft();
+    seedContextDb({ contactDeliveryService: "sms" });
+
+    await approveImessageDraft("draft-1", { tenantId: "tenant-1" });
+
+    const outbox = readFileSync(outboxPath(), "utf8");
+
+    expect(outbox).toContain('service: "sms"');
+    expect(outbox).toContain('context_delivery_service: "sms"');
+  });
+
+  it("lets conversation delivery service override contact delivery service", async () => {
+    writeDraft();
+    seedContextDb({ contactDeliveryService: "sms", conversationDeliveryService: "imessage" });
+
+    await approveImessageDraft("draft-1", { tenantId: "tenant-1" });
+
+    const outbox = readFileSync(outboxPath(), "utf8");
+
+    expect(outbox).toContain('service: "imessage"');
+    expect(outbox).toContain('context_delivery_service: "imessage"');
   });
 
   it("blocks do_not_reply drafts unless explicitly overridden", async () => {

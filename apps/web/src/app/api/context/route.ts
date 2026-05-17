@@ -17,6 +17,7 @@ type ContextPayload = {
   contactKey?: string;
   customPersonalDetails?: string[];
   customPrompt?: string;
+  deliveryService?: string;
   displayName?: string;
   id?: string;
   notes?: string;
@@ -123,6 +124,7 @@ function normalizeRow(row: Record<string, unknown>) {
     contactKey: row.contact_key ? String(row.contact_key) : undefined,
     customPersonalDetails: JSON.parse(String(row.custom_personal_details_json ?? "[]")),
     customPrompt: String(row.custom_prompt ?? ""),
+    deliveryService: String(row.delivery_service ?? (row.channel_id ? "inherit" : "auto")),
     displayName: String(row.display_name ?? ""),
     id: String(row.id),
     notes: String(row.notes ?? ""),
@@ -214,11 +216,12 @@ function saveContactContext(tenantId: string, payload: ContextPayload) {
           notes,
           signature_mode,
           signature_value,
+          delivery_service,
           allowed_personal_details_json,
           custom_personal_details_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, contact_key) DO UPDATE SET
           display_name = excluded.display_name,
           relationship = excluded.relationship,
@@ -228,6 +231,7 @@ function saveContactContext(tenantId: string, payload: ContextPayload) {
           notes = excluded.notes,
           signature_mode = excluded.signature_mode,
           signature_value = excluded.signature_value,
+          delivery_service = excluded.delivery_service,
           allowed_personal_details_json = excluded.allowed_personal_details_json,
           custom_personal_details_json = excluded.custom_personal_details_json,
           updated_at = excluded.updated_at`,
@@ -244,6 +248,7 @@ function saveContactContext(tenantId: string, payload: ContextPayload) {
         payload.notes ?? "",
         payload.signatureMode ?? "inherit",
         payload.signatureValue ?? "",
+        payload.deliveryService ?? "auto",
         jsonArray(payload.allowedPersonalDetails),
         jsonArray(payload.customPersonalDetails),
         now,
@@ -288,11 +293,12 @@ function saveConversationContext(tenantId: string, payload: ContextPayload) {
           notes,
           signature_mode,
           signature_value,
+          delivery_service,
           allowed_personal_details_json,
           custom_personal_details_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, channel_id, room_key) DO UPDATE SET
           display_name = excluded.display_name,
           relationship = excluded.relationship,
@@ -302,6 +308,7 @@ function saveConversationContext(tenantId: string, payload: ContextPayload) {
           notes = excluded.notes,
           signature_mode = excluded.signature_mode,
           signature_value = excluded.signature_value,
+          delivery_service = excluded.delivery_service,
           allowed_personal_details_json = excluded.allowed_personal_details_json,
           custom_personal_details_json = excluded.custom_personal_details_json,
           updated_at = excluded.updated_at`,
@@ -319,6 +326,7 @@ function saveConversationContext(tenantId: string, payload: ContextPayload) {
         payload.notes ?? "",
         payload.signatureMode ?? "inherit",
         payload.signatureValue ?? "",
+        payload.deliveryService ?? "inherit",
         jsonArray(payload.allowedPersonalDetails),
         jsonArray(payload.customPersonalDetails),
         now,

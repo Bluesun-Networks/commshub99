@@ -24,6 +24,7 @@ export const contextHistoryOperations = ["create", "update", "delete", "rollback
 export const contextHistorySources = ["human", "harvest", "import", "system"] as const;
 export const contextReviewStatuses = ["pending", "approved", "rejected", "superseded"] as const;
 export const contextSignatureModes = ["inherit", "append", "override"] as const;
+export const contextDeliveryServices = ["inherit", "auto", "imessage", "sms"] as const;
 
 export const tenantSettings = sqliteTable("tenant_settings", {
   tenantId: text("tenant_id")
@@ -60,6 +61,9 @@ export const contactContexts = sqliteTable(
       .notNull()
       .default("inherit"),
     signatureValue: text("signature_value").notNull().default(""),
+    deliveryService: text("delivery_service", { enum: contextDeliveryServices })
+      .notNull()
+      .default("auto"),
     allowedPersonalDetailsJson: text("allowed_personal_details_json").notNull().default("[]"),
     customPersonalDetailsJson: text("custom_personal_details_json").notNull().default("[]"),
     createdAt: integer("created_at", { mode: "timestamp" })
@@ -98,6 +102,9 @@ export const conversationContexts = sqliteTable(
       .notNull()
       .default("inherit"),
     signatureValue: text("signature_value").notNull().default(""),
+    deliveryService: text("delivery_service", { enum: contextDeliveryServices })
+      .notNull()
+      .default("inherit"),
     allowedPersonalDetailsJson: text("allowed_personal_details_json").notNull().default("[]"),
     customPersonalDetailsJson: text("custom_personal_details_json").notNull().default("[]"),
     createdAt: integer("created_at", { mode: "timestamp" })

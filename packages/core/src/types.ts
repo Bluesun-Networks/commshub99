@@ -124,10 +124,14 @@ export type PersonalDetailBoundary = z.infer<typeof personalDetailBoundarySchema
 export const contextSignatureModeSchema = z.enum(["inherit", "append", "override"]);
 export type ContextSignatureMode = z.infer<typeof contextSignatureModeSchema>;
 
+export const contextDeliveryServiceSchema = z.enum(["inherit", "auto", "imessage", "sms"]);
+export type ContextDeliveryService = z.infer<typeof contextDeliveryServiceSchema>;
+
 export const contextProfileSchema = z.object({
   allowedPersonalDetails: z.array(personalDetailBoundarySchema),
   customPersonalDetails: z.array(z.string()),
   customPrompt: z.string(),
+  deliveryService: contextDeliveryServiceSchema,
   displayName: z.string(),
   id: z.string(),
   notes: z.string(),
@@ -188,6 +192,7 @@ export const draftContextSnapshotSchema = z.object({
   contextVersionIds: z.array(z.string()),
   customPersonalDetails: z.array(z.string()),
   customPrompt: z.string(),
+  deliveryService: contextDeliveryServiceSchema,
   notes: z.string(),
   replyPosture: contextReplyPostureSchema,
   signature: z.string(),

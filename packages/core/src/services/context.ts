@@ -3,6 +3,7 @@ import { createDbClient } from "@commshub99/db";
 import type {
   ChannelId,
   ContactContext,
+  ContextDeliveryService,
   ContextProfile,
   ContextReplyPosture,
   ContextSignatureMode,
@@ -27,6 +28,7 @@ export interface ResolvedContextBundle {
     allowedPersonalDetails: PersonalDetailBoundary[];
     customPersonalDetails: string[];
     customPrompt: string;
+    deliveryService: ContextDeliveryService;
     notes: string;
     replyPosture: ContextReplyPosture;
     signature: string;
@@ -75,6 +77,7 @@ function rowToContactContext(row: Record<string, unknown>): ContactContext {
     contactKey: String(row.contact_key),
     customPersonalDetails: parseJsonArray(row.custom_personal_details_json),
     customPrompt: String(row.custom_prompt ?? ""),
+    deliveryService: (row.delivery_service ?? "auto") as ContextDeliveryService,
     displayName: String(row.display_name ?? ""),
     id: String(row.id),
     notes: String(row.notes ?? ""),
@@ -97,6 +100,7 @@ function rowToConversationContext(row: Record<string, unknown>): ConversationCon
     channelId: row.channel_id as ChannelId,
     customPersonalDetails: parseJsonArray(row.custom_personal_details_json),
     customPrompt: String(row.custom_prompt ?? ""),
+    deliveryService: (row.delivery_service ?? "inherit") as ContextDeliveryService,
     displayName: String(row.display_name ?? ""),
     id: String(row.id),
     notes: String(row.notes ?? ""),
@@ -175,6 +179,12 @@ function effectiveSignature(signature: string, contexts: ContextProfile[]) {
   }, signature);
 }
 
+function effectiveDeliveryService(contexts: ContextProfile[]) {
+  return contexts.reduce<ContextDeliveryService>((current, context) => {
+    return context.deliveryService === "inherit" ? current : context.deliveryService;
+  }, "auto");
+}
+
 function latestVersionIds(tenantId: string, contexts: ContextProfile[]) {
   if (contexts.length === 0) {
     return [];
@@ -222,6 +232,7 @@ export function contextBundleToDraftSnapshot(
     conversationContextId: bundle.conversationContext?.id ?? null,
     customPersonalDetails: bundle.effective.customPersonalDetails,
     customPrompt: bundle.effective.customPrompt,
+    deliveryService: bundle.effective.deliveryService,
     notes: bundle.effective.notes,
     replyPosture: bundle.effective.replyPosture,
     signature: bundle.effective.signature,
@@ -286,6 +297,7 @@ export class ContextService {
             contexts.map((context) => context.customPersonalDetails),
           ),
           customPrompt: joinedText(contexts, "customPrompt"),
+          deliveryService: effectiveDeliveryService(contexts),
           notes: joinedText(contexts, "notes"),
           replyPosture: mostRestrictiveReplyPosture(contexts),
           signature: effectiveSignature(signature, contexts),

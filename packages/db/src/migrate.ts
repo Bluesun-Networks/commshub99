@@ -107,6 +107,18 @@ function ensureLegacyColumns(sqlite: SqliteDatabase) {
     addColumnIfMissing(sqlite, "sessions", "ip_address text");
     addColumnIfMissing(sqlite, "sessions", "user_agent text");
   }
+
+  if (tableExists(sqlite, "contact_contexts")) {
+    addColumnIfMissing(sqlite, "contact_contexts", "delivery_service text DEFAULT 'auto' NOT NULL");
+  }
+
+  if (tableExists(sqlite, "conversation_contexts")) {
+    addColumnIfMissing(
+      sqlite,
+      "conversation_contexts",
+      "delivery_service text DEFAULT 'inherit' NOT NULL",
+    );
+  }
 }
 
 function seedMigrationJournal(sqlite: SqliteDatabase) {

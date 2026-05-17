@@ -203,18 +203,16 @@ function readChatContextInput(chatId: string, targetIdentifier: string): ChatCon
   }
 }
 
-function currentSignature(tenantId: string | undefined, chatId: string, targetIdentifier: string) {
+function currentContext(tenantId: string | undefined, chatId: string, targetIdentifier: string) {
   if (!tenantId) {
-    return "";
+    return null;
   }
 
-  return new ContextService()
-    .resolve({
-      channelId: "imessage",
-      ...readChatContextInput(chatId, targetIdentifier),
-      tenantId,
-    })
-    .effective.signature.trim();
+  return new ContextService().resolve({
+    channelId: "imessage",
+    ...readChatContextInput(chatId, targetIdentifier),
+    tenantId,
+  });
 }
 
 function bodyWithSignature(body: string, signature: string) {
@@ -241,9 +239,6 @@ function writeOutboxContent(content: string, options: ApproveImessageDraftOption
   outboxMeta.set("uuid", uuid);
   const numericChatId = Number(chatId);
   const targetIdentifier = meta.get("target_identifier") ?? "";
-  const signature =
-    currentSignature(options.tenantId ?? meta.get("context_tenant_id"), chatId, targetIdentifier) ||
-    (meta.get("context_signature") ?? "");
 
   outboxMeta.set("chat_id", numericChatId);
   outboxMeta.set("target_identifier", targetIdentifier);
@@ -251,12 +246,23 @@ function writeOutboxContent(content: string, options: ApproveImessageDraftOption
   outboxMeta.set("source_draft_uuid", uuid);
   outboxMeta.set("reasoning", meta.get("reasoning") ?? "");
   outboxMeta.set("auto_approved", meta.get("auto_approved") === "true");
+  const context = currentContext(
+    options.tenantId ?? meta.get("context_tenant_id"),
+    chatId,
+    targetIdentifier,
+  );
+  const signature = context?.effective.signature.trim() || (meta.get("context_signature") ?? "");
   outboxMeta.set("context_signature", signature);
 
-  const service = sendService(meta.get("service") || readChatService(numericChatId));
+  const deliveryService =
+    context && context.contextProfileIds.length > 0
+      ? context.effective.deliveryService
+      : (meta.get("context_delivery_service") ?? meta.get("service") ?? "");
+  const service = sendService(deliveryService || readChatService(numericChatId));
   if (service) {
     outboxMeta.set("service", service);
   }
+  outboxMeta.set("context_delivery_service", service || "auto");
 
   const sourceRowid = Number(meta.get("source_rowid"));
   if (Number.isFinite(sourceRowid)) {

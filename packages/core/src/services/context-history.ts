@@ -137,11 +137,12 @@ function restoreContactContext(payload: Record<string, unknown>) {
           notes,
           signature_mode,
           signature_value,
+          delivery_service,
           allowed_personal_details_json,
           custom_personal_details_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           tenant_id = excluded.tenant_id,
           contact_key = excluded.contact_key,
@@ -153,6 +154,7 @@ function restoreContactContext(payload: Record<string, unknown>) {
           notes = excluded.notes,
           signature_mode = excluded.signature_mode,
           signature_value = excluded.signature_value,
+          delivery_service = excluded.delivery_service,
           allowed_personal_details_json = excluded.allowed_personal_details_json,
           custom_personal_details_json = excluded.custom_personal_details_json,
           updated_at = excluded.updated_at`,
@@ -169,6 +171,7 @@ function restoreContactContext(payload: Record<string, unknown>) {
         textValue(payload, "notes", "notes"),
         textValue(payload, "signature_mode", "signatureMode") || "inherit",
         textValue(payload, "signature_value", "signatureValue"),
+        textValue(payload, "delivery_service", "deliveryService") || "auto",
         jsonTextValue(payload, "allowed_personal_details_json", "allowedPersonalDetails"),
         jsonTextValue(payload, "custom_personal_details_json", "customPersonalDetails"),
         timestampValue(payload, "created_at", "createdAt"),
@@ -198,11 +201,12 @@ function restoreConversationContext(payload: Record<string, unknown>) {
           notes,
           signature_mode,
           signature_value,
+          delivery_service,
           allowed_personal_details_json,
           custom_personal_details_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           tenant_id = excluded.tenant_id,
           channel_id = excluded.channel_id,
@@ -215,6 +219,7 @@ function restoreConversationContext(payload: Record<string, unknown>) {
           notes = excluded.notes,
           signature_mode = excluded.signature_mode,
           signature_value = excluded.signature_value,
+          delivery_service = excluded.delivery_service,
           allowed_personal_details_json = excluded.allowed_personal_details_json,
           custom_personal_details_json = excluded.custom_personal_details_json,
           updated_at = excluded.updated_at`,
@@ -232,6 +237,7 @@ function restoreConversationContext(payload: Record<string, unknown>) {
         textValue(payload, "notes", "notes"),
         textValue(payload, "signature_mode", "signatureMode") || "inherit",
         textValue(payload, "signature_value", "signatureValue"),
+        textValue(payload, "delivery_service", "deliveryService") || "inherit",
         jsonTextValue(payload, "allowed_personal_details_json", "allowedPersonalDetails"),
         jsonTextValue(payload, "custom_personal_details_json", "customPersonalDetails"),
         timestampValue(payload, "created_at", "createdAt"),
