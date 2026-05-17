@@ -484,6 +484,14 @@ function latestConversationMessageId(conversation: Conversation | undefined) {
   return conversation?.messages.at(-1)?.id;
 }
 
+function conversationPreview(conversation: Conversation) {
+  if (conversation.lastMessageDirection === "outbound") {
+    return `You: ${conversation.lastMessage}`;
+  }
+
+  return conversation.lastMessage;
+}
+
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
   return <span className={`status status-${tone}`}>{children}</span>;
 }
@@ -1484,7 +1492,12 @@ export function AppShell({
             loading={conversationsLoading}
             onOpenConversationContext={openConversationContext}
             onSelectConversation={openConversation}
-            selectedConversationId={routeConversation?.id}
+            selectedConversationId={
+              routeConversation?.id ??
+              (route.view === "conversations" && route.conversationId
+                ? `missing:${route.conversationService ?? "conversation"}:${route.conversationId}`
+                : undefined)
+            }
           />
         ) : null}
         {activeView === "contacts" ? (
@@ -1659,6 +1672,10 @@ function Conversations({
       return;
     }
 
+    if (selectedId?.startsWith("missing:")) {
+      return;
+    }
+
     if (!selectedId || !conversations.some((conversation) => conversation.id === selectedId)) {
       const nextConversation = conversations[0];
 
@@ -1714,8 +1731,9 @@ function Conversations({
     return searchableText.includes(query.trim().toLowerCase());
   });
   const selectedConversation =
-    filteredConversations.find((conversation) => conversation.id === selectedId) ??
-    filteredConversations[0];
+    selectedId === undefined
+      ? filteredConversations[0]
+      : filteredConversations.find((conversation) => conversation.id === selectedId);
   const anchoredMessageId = targetMessageId ?? latestConversationMessageId(selectedConversation);
   const selectedLinkedContact = selectedConversation?.linkedContact
     ? (resolveContactRoute(selectedConversation.linkedContact.id, contacts) ??
@@ -1804,7 +1822,7 @@ function Conversations({
                   <span className="conversation-meta">
                     {conversation.channel} · {conversation.handle}
                   </span>
-                  <span className="conversation-preview">{conversation.lastMessage}</span>
+                  <span className="conversation-preview">{conversationPreview(conversation)}</span>
                   <span className="conversation-row-bottom">
                     <StatusBadge tone={conversation.status === "matched" ? "ready" : "waiting"}>
                       {conversation.status === "matched" ? "Matched" : "Needs contact"}
@@ -1885,8 +1903,12 @@ function Conversations({
             ) : (
               <EmptyState
                 icon={<MessageCircle aria-hidden size={24} />}
-                message="Once the iMessage read model lands, conversations from the adapter will appear here."
-                title="No conversation selected"
+                message={
+                  selectedId
+                    ? "That conversation is not in the current archive or filtered view."
+                    : "Pick a conversation from the list."
+                }
+                title={selectedId ? "Conversation not found" : "No conversation selected"}
               />
             )}
           </div>

@@ -57,9 +57,20 @@ export function inferredSelfContactIds(sqlite: SqliteDatabase) {
       WHERE status = 'matched'
         AND contact_id IS NOT NULL
       GROUP BY contact_id
-      HAVING count(DISTINCT chat_id) = ?`,
+      ORDER BY count DESC
+      LIMIT 2`,
     )
-    .all(total.count) as Array<{ contact_id?: string }>;
+    .all() as Array<{ contact_id?: string; count: number }>;
+  const top = rows[0];
+  const runnerUp = rows[1];
 
-  return normalizedPerspectiveValues(rows.map((row) => row.contact_id));
+  if (!top || top.count < Math.ceil(total.count * 0.5)) {
+    return [];
+  }
+
+  if (runnerUp && top.count < runnerUp.count * 2) {
+    return [];
+  }
+
+  return normalizedPerspectiveValues([top.contact_id]);
 }

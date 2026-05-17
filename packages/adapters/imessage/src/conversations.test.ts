@@ -57,7 +57,9 @@ describe("iMessage conversations", () => {
     expect(result.conversations[0]).toMatchObject({
       contact: "Ada Lovelace",
       id: "imessage:chat:7",
+      isGroup: false,
       lastMessage: "Latest outbound",
+      lastMessageDirection: "outbound",
       linkedContact: {
         id: "contact-1",
         name: "Ada Lovelace",

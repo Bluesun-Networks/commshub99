@@ -19,6 +19,7 @@ type ConversationRow = {
   is_group: number;
   last_message: string | null;
   last_message_at: string;
+  last_message_direction: "inbound" | "outbound" | null;
   matched_count: number;
   message_count: number;
   name: string;
@@ -130,6 +131,15 @@ export function listImessageConversations(options: ImessagePerspective = {}): {
             LIMIT 1
           ) AS last_message,
           (
+            SELECT CASE WHEN messages.is_from_me = 1 THEN 'outbound' ELSE 'inbound' END
+            FROM messages
+            WHERE messages.chat_id = chats.id
+              AND messages.is_reaction = 0
+              AND messages.text != ''
+            ORDER BY messages.date DESC
+            LIMIT 1
+          ) AS last_message_direction,
+          (
             SELECT count(*)
             FROM messages
             WHERE messages.chat_id = chats.id
@@ -170,8 +180,10 @@ export function listImessageConversations(options: ImessagePerspective = {}): {
         contact: displayName(row),
         handle: row.is_group ? `${row.message_count} messages` : row.handle,
         id: `imessage:chat:${row.chat_id}`,
+        isGroup: row.is_group === 1,
         lastMessage: fallbackMessage,
         lastMessageAt: displayDate(row.last_message_at),
+        lastMessageDirection: row.last_message_direction,
         linkedContact:
           row.matched_count > 0 && row.contact_id
             ? {
