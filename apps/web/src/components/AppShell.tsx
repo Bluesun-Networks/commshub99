@@ -1660,6 +1660,7 @@ function Conversations({
   const [targetMessageId, setTargetMessageId] = useState<string | undefined>();
   const [query, setQuery] = useState("");
   const [clearedFocusToken, setClearedFocusToken] = useState<number | null>(null);
+  const conversationListRef = useRef<HTMLUListElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const activeFocus = focus && focus.token !== clearedFocusToken ? focus : null;
 
@@ -1762,6 +1763,21 @@ function Conversations({
       messageNode?.scrollIntoView({ block: "center" });
     });
   }, [anchoredMessageId, selectedConversation]);
+
+  useEffect(() => {
+    if (!selectedConversation) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const rowNode = conversationListRef.current?.querySelector(
+        `[data-conversation-id="${CSS.escape(selectedConversation.id)}"]`,
+      );
+
+      rowNode?.scrollIntoView({ block: "center" });
+    });
+  }, [selectedConversation]);
+
   const selectedLinkedContactPath = selectedConversation?.linkedContact
     ? selectedLinkedContact
       ? contactPath(selectedLinkedContact)
@@ -1811,12 +1827,13 @@ function Conversations({
 
       {!error && !loading ? (
         <div className="conversation-layout">
-          <ul className="conversation-list" aria-label="Conversations">
+          <ul className="conversation-list" aria-label="Conversations" ref={conversationListRef}>
             {filteredConversations.map((conversation) => (
               <li key={conversation.id}>
                 <button
                   aria-pressed={selectedConversation?.id === conversation.id}
                   className="conversation-row"
+                  data-conversation-id={conversation.id}
                   onClick={() => {
                     setSelectedId(conversation.id);
                     setTargetMessageId(latestConversationMessageId(conversation));
