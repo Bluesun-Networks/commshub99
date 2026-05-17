@@ -32,11 +32,22 @@ function createDatabase() {
   const sqlite = new Database(databasePath);
 
   sqlite.exec(`
+    CREATE TABLE contacts (
+      contact_id TEXT PRIMARY KEY,
+      full_name TEXT NOT NULL
+    );
+
     CREATE TABLE chat_contact_matches (
       chat_id INTEGER NOT NULL,
       contact_id TEXT,
       status TEXT NOT NULL
     );
+
+    INSERT INTO contacts (contact_id, full_name)
+    VALUES
+      ('contact-a', 'Ada Lovelace'),
+      ('contact-b', 'Grace Hopper'),
+      ('self-contact', 'Jon Zobrist');
 
     INSERT INTO chat_contact_matches (chat_id, contact_id, status)
     VALUES
@@ -45,6 +56,7 @@ function createDatabase() {
       (2, 'contact-a', 'matched'),
       (3, 'contact-b', 'matched'),
       (4, 'contact-b', 'unmatched'),
+      (6, 'self-contact', 'matched'),
       (5, NULL, 'matched');
   `);
   sqlite.close();
@@ -62,6 +74,18 @@ describe("iMessage contact conversation counts", () => {
     expect(result.error).toBeNull();
     expect(result.conversationCounts.get("contact-a")).toBe(2);
     expect(result.conversationCounts.get("contact-b")).toBe(1);
+  });
+
+  it("excludes the signed-in user from contact conversation counts", () => {
+    createDatabase();
+
+    const result = listImessageContactConversationCounts({
+      selfNames: ["Jon Zobrist"],
+    });
+
+    expect(result.error).toBeNull();
+    expect(result.conversationCounts.get("self-contact")).toBeUndefined();
+    expect(result.conversationCounts.get("contact-a")).toBe(2);
   });
 
   it("returns an empty result when the iMessage database is missing", () => {

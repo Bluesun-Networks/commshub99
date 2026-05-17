@@ -42,7 +42,9 @@ afterEach(() => {
 
 describe("iMessage conversations", () => {
   it("maps fixture conversations and recent messages from the temp database", () => {
-    const result = listImessageConversations();
+    const result = listImessageConversations({
+      selfNames: ["Jon Zobrist"],
+    });
 
     expect(result.error).toBeNull();
     expect(result.databasePath).toBe(join(tempDir, "imessage.sqlite"));

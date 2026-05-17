@@ -36,11 +36,14 @@ VALUES
   (8, 'Family', 'chat-family', 'iMessage', '2026-05-10T20:00:00Z', 1);
 
 INSERT INTO contacts (contact_id, full_name)
-VALUES ('contact-1', 'Ada Lovelace');
+VALUES
+  ('contact-1', 'Ada Lovelace'),
+  ('self-contact', 'Jon Zobrist');
 
 INSERT INTO chat_contact_matches (chat_id, contact_id, status, confidence)
 VALUES
   (7, 'contact-1', 'matched', 0.98),
+  (7, 'self-contact', 'matched', 0.99),
   (8, NULL, 'unmatched', 0);
 
 INSERT INTO messages (rowid, chat_id, text, is_from_me, date, is_reaction, has_attachments)

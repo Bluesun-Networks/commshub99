@@ -13,7 +13,10 @@ export async function GET(request: Request) {
     return auth.response;
   }
 
-  const result = listImessageConversations();
+  const result = listImessageConversations({
+    selfIdentifiers: [auth.session.user.email, auth.session.user.id],
+    selfNames: [auth.session.user.name],
+  });
 
   if (result.error) {
     return NextResponse.json(

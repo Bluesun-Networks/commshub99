@@ -2,13 +2,18 @@
 import { existsSync } from "node:fs";
 import Database from "better-sqlite3";
 import { resolveImessageDatabasePath } from "./paths.js";
+import { type ImessagePerspective, normalizedPerspectiveValues } from "./perspective.js";
 
 type ContactConversationCountRow = {
   contact_id: string;
   conversation_count: number;
 };
 
-export function listImessageContactConversationCounts() {
+function placeholderList(values: string[]) {
+  return values.length > 0 ? values.map(() => "?").join(", ") : "''";
+}
+
+export function listImessageContactConversationCounts(options: ImessagePerspective = {}) {
   const databasePath = resolveImessageDatabasePath();
 
   if (!existsSync(databasePath)) {
@@ -25,17 +30,24 @@ export function listImessageContactConversationCounts() {
   });
 
   try {
+    const selfIdentifiers = normalizedPerspectiveValues(options.selfIdentifiers);
+    const selfNames = normalizedPerspectiveValues(options.selfNames);
     const rows = sqlite
       .prepare(`
         SELECT
-          contact_id,
+          chat_contact_matches.contact_id,
           count(DISTINCT chat_id) AS conversation_count
         FROM chat_contact_matches
+        LEFT JOIN contacts ON contacts.contact_id = chat_contact_matches.contact_id
         WHERE status = 'matched'
-          AND contact_id IS NOT NULL
-        GROUP BY contact_id
+          AND chat_contact_matches.contact_id IS NOT NULL
+          AND NOT (
+            lower(coalesce(chat_contact_matches.contact_id, '')) IN (${placeholderList(selfIdentifiers)})
+            OR lower(coalesce(contacts.full_name, '')) IN (${placeholderList(selfNames)})
+          )
+        GROUP BY chat_contact_matches.contact_id
       `)
-      .all() as ContactConversationCountRow[];
+      .all(...selfIdentifiers, ...selfNames) as ContactConversationCountRow[];
 
     return {
       conversationCounts: new Map(

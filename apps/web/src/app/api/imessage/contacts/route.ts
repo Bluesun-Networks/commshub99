@@ -52,7 +52,10 @@ export async function GET(request: Request) {
     return auth.response;
   }
 
-  const { conversationCounts, databasePath, error } = listImessageContactConversationCounts();
+  const { conversationCounts, databasePath, error } = listImessageContactConversationCounts({
+    selfIdentifiers: [auth.session.user.email, auth.session.user.id],
+    selfNames: [auth.session.user.name],
+  });
 
   if (error) {
     return NextResponse.json(

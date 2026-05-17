@@ -4,6 +4,7 @@ import type { Conversation } from "@commshub99/core";
 import Database from "better-sqlite3";
 import { displayDate, normalizeMessageText } from "./format.js";
 import { resolveImessageDatabasePath } from "./paths.js";
+import { type ImessagePerspective, normalizedPerspectiveValues } from "./perspective.js";
 
 type ConversationRow = {
   chat_id: number;
@@ -42,7 +43,11 @@ function displayName(row: ConversationRow) {
   return row.handle || "Unknown sender";
 }
 
-export function listImessageConversations(): {
+function placeholderList(values: string[]) {
+  return values.length > 0 ? values.map(() => "?").join(", ") : "''";
+}
+
+export function listImessageConversations(options: ImessagePerspective = {}): {
   conversations: Conversation[];
   databasePath: string;
   error: string | null;
@@ -63,6 +68,13 @@ export function listImessageConversations(): {
   });
 
   try {
+    const selfIdentifiers = normalizedPerspectiveValues(options.selfIdentifiers);
+    const selfNames = normalizedPerspectiveValues(options.selfNames);
+    const selfMatchSql = `(
+      lower(coalesce(ccm.contact_id, '')) IN (${placeholderList(selfIdentifiers)})
+      OR lower(coalesce(contacts.full_name, '')) IN (${placeholderList(selfNames)})
+    )`;
+    const selfMatchParams = [...selfIdentifiers, ...selfNames];
     const conversationRows = sqlite
       .prepare(`
         WITH ranked_matches AS (
@@ -81,6 +93,7 @@ export function listImessageConversations(): {
             ) AS rank
           FROM chat_contact_matches ccm
           LEFT JOIN contacts ON contacts.contact_id = ccm.contact_id
+          WHERE NOT ${selfMatchSql}
         ),
         contact_rollup AS (
           SELECT
@@ -119,7 +132,7 @@ export function listImessageConversations(): {
         ORDER BY chats.last_message_at DESC
         LIMIT 80
       `)
-      .all() as ConversationRow[];
+      .all(...selfMatchParams) as ConversationRow[];
 
     const messageStatement = sqlite.prepare(`
       SELECT
