@@ -480,6 +480,10 @@ function conversationRoomKey(conversation: Conversation) {
   return conversation.id.split(":").at(-1) ?? conversation.id;
 }
 
+function latestConversationMessageId(conversation: Conversation | undefined) {
+  return conversation?.messages.at(-1)?.id;
+}
+
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
   return <span className={`status status-${tone}`}>{children}</span>;
 }
@@ -1631,24 +1635,35 @@ function Conversations({
   selectedConversationId: string | undefined;
 }) {
   const [selectedId, setSelectedId] = useState<string | undefined>();
+  const [targetMessageId, setTargetMessageId] = useState<string | undefined>();
   const [query, setQuery] = useState("");
   const [clearedFocusToken, setClearedFocusToken] = useState<number | null>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
   const activeFocus = focus && focus.token !== clearedFocusToken ? focus : null;
 
   useEffect(() => {
     if (selectedConversationId) {
+      const selectedConversation = conversations.find(
+        (conversation) => conversation.id === selectedConversationId,
+      );
+
       setSelectedId(selectedConversationId);
+      setTargetMessageId(latestConversationMessageId(selectedConversation));
     }
-  }, [selectedConversationId]);
+  }, [conversations, selectedConversationId]);
 
   useEffect(() => {
     if (conversations.length === 0) {
       setSelectedId(undefined);
+      setTargetMessageId(undefined);
       return;
     }
 
     if (!selectedId || !conversations.some((conversation) => conversation.id === selectedId)) {
-      setSelectedId(conversations[0]?.id);
+      const nextConversation = conversations[0];
+
+      setSelectedId(nextConversation?.id);
+      setTargetMessageId(latestConversationMessageId(nextConversation));
     }
   }, [conversations, selectedId]);
 
@@ -1660,9 +1675,14 @@ function Conversations({
     setQuery(activeFocus.contact ? "" : activeFocus.query);
 
     if (activeFocus.selectedId) {
+      const focusedConversation = conversations.find(
+        (conversation) => conversation.id === activeFocus.selectedId,
+      );
+
       setSelectedId(activeFocus.selectedId);
+      setTargetMessageId(latestConversationMessageId(focusedConversation));
     }
-  }, [activeFocus]);
+  }, [activeFocus, conversations]);
 
   const filteredConversations = conversations.filter((conversation) => {
     if (activeFocus?.contact) {
@@ -1696,10 +1716,25 @@ function Conversations({
   const selectedConversation =
     filteredConversations.find((conversation) => conversation.id === selectedId) ??
     filteredConversations[0];
+  const anchoredMessageId = targetMessageId ?? latestConversationMessageId(selectedConversation);
   const selectedLinkedContact = selectedConversation?.linkedContact
     ? (resolveContactRoute(selectedConversation.linkedContact.id, contacts) ??
       resolveContactRoute(selectedConversation.linkedContact.name, contacts))
     : undefined;
+
+  useEffect(() => {
+    if (!selectedConversation || !anchoredMessageId) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const messageNode = threadRef.current?.querySelector(
+        `[data-message-id="${CSS.escape(anchoredMessageId)}"]`,
+      );
+
+      messageNode?.scrollIntoView({ block: "center" });
+    });
+  }, [anchoredMessageId, selectedConversation]);
   const selectedLinkedContactPath = selectedConversation?.linkedContact
     ? selectedLinkedContact
       ? contactPath(selectedLinkedContact)
@@ -1757,6 +1792,7 @@ function Conversations({
                   className="conversation-row"
                   onClick={() => {
                     setSelectedId(conversation.id);
+                    setTargetMessageId(latestConversationMessageId(conversation));
                     onSelectConversation(conversation.id);
                   }}
                   type="button"
@@ -1829,10 +1865,17 @@ function Conversations({
                 <div
                   className="message-thread"
                   aria-label={`Messages with ${selectedConversation.contact}`}
+                  ref={threadRef}
                   role="log"
                 >
                   {selectedConversation.messages.map((message) => (
-                    <div className={`message-bubble message-${message.direction}`} key={message.id}>
+                    <div
+                      className={`message-bubble message-${message.direction}${
+                        message.id === anchoredMessageId ? " message-focused" : ""
+                      }`}
+                      data-message-id={message.id}
+                      key={message.id}
+                    >
                       <p>{message.body}</p>
                       <span>{message.sentAt}</span>
                     </div>

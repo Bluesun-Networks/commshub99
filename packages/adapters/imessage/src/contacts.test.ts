@@ -52,9 +52,12 @@ function createDatabase() {
     INSERT INTO chat_contact_matches (chat_id, contact_id, status)
     VALUES
       (1, 'contact-a', 'matched'),
+      (1, 'self-contact', 'matched'),
       (1, 'contact-a', 'matched'),
       (2, 'contact-a', 'matched'),
+      (2, 'self-contact', 'matched'),
       (3, 'contact-b', 'matched'),
+      (3, 'self-contact', 'matched'),
       (4, 'contact-b', 'unmatched'),
       (6, 'self-contact', 'matched'),
       (5, NULL, 'matched');
@@ -72,6 +75,7 @@ describe("iMessage contact conversation counts", () => {
 
     expect(result.databasePath).toBe(databasePath);
     expect(result.error).toBeNull();
+    expect(result.conversationCounts.get("self-contact")).toBeUndefined();
     expect(result.conversationCounts.get("contact-a")).toBe(2);
     expect(result.conversationCounts.get("contact-b")).toBe(1);
   });

@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { resolveImessageDatabasePath } from "./paths.js";
 import {
   type ImessagePerspective,
+  inferredSelfContactIds,
   selfIdentifiersForPerspective,
   selfNamesForPerspective,
 } from "./perspective.js";
@@ -34,7 +35,10 @@ export function listImessageContactConversationCounts(options: ImessagePerspecti
   });
 
   try {
-    const selfIdentifiers = selfIdentifiersForPerspective(options);
+    const selfIdentifiers = [
+      ...selfIdentifiersForPerspective(options),
+      ...inferredSelfContactIds(sqlite),
+    ];
     const selfNames = selfNamesForPerspective(options);
     const rows = sqlite
       .prepare(`

@@ -6,6 +6,7 @@ import { displayDate, normalizeMessageText } from "./format.js";
 import { resolveImessageDatabasePath } from "./paths.js";
 import {
   type ImessagePerspective,
+  inferredSelfContactIds,
   selfIdentifiersForPerspective,
   selfNamesForPerspective,
 } from "./perspective.js";
@@ -72,7 +73,10 @@ export function listImessageConversations(options: ImessagePerspective = {}): {
   });
 
   try {
-    const selfIdentifiers = selfIdentifiersForPerspective(options);
+    const selfIdentifiers = [
+      ...selfIdentifiersForPerspective(options),
+      ...inferredSelfContactIds(sqlite),
+    ];
     const selfNames = selfNamesForPerspective(options);
     const selfMatchSql = `(
       lower(coalesce(ccm.contact_id, '')) IN (${placeholderList(selfIdentifiers)})

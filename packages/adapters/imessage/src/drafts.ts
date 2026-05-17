@@ -13,6 +13,7 @@ import Database from "better-sqlite3";
 import { displayDate } from "./format.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { resolveImessageChatsPath, resolveImessageDatabasePath } from "./paths.js";
+import { inferredSelfContactIds } from "./perspective.js";
 
 type DraftFile = {
   path: string;
@@ -175,6 +176,7 @@ function readChatContextInputs(drafts: ProposedMessage[]) {
         AND status = 'matched'
         AND contact_id IS NOT NULL`,
     );
+    const selfContactIds = new Set(inferredSelfContactIds(sqlite));
 
     for (const draft of drafts) {
       const input = inputs.get(draft.chatId);
@@ -196,7 +198,7 @@ function readChatContextInputs(drafts: ProposedMessage[]) {
       }
 
       for (const match of matches) {
-        if (match.contact_id) {
+        if (match.contact_id && !selfContactIds.has(match.contact_id.toLowerCase())) {
           contactKeys.add(match.contact_id);
         }
       }

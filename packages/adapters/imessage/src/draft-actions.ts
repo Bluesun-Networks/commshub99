@@ -11,6 +11,7 @@ import {
   resolveImessageDatabasePath,
   resolveImessageDataPath,
 } from "./paths.js";
+import { inferredSelfContactIds } from "./perspective.js";
 
 export interface DraftActionResult {
   alreadyCompleted?: boolean;
@@ -183,13 +184,14 @@ function readChatContextInput(chatId: string, targetIdentifier: string): ChatCon
       )
       .all(chatId) as Array<{ contact_id?: string }>;
     const contactKeys = new Set(input.contactKeys);
+    const selfContactIds = new Set(inferredSelfContactIds(sqlite));
 
     if (chat?.identifier) {
       contactKeys.add(chat.identifier);
     }
 
     for (const match of matches) {
-      if (match.contact_id) {
+      if (match.contact_id && !selfContactIds.has(match.contact_id.toLowerCase())) {
         contactKeys.add(match.contact_id);
       }
     }

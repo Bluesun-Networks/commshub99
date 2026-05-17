@@ -44,6 +44,7 @@ INSERT INTO chat_contact_matches (chat_id, contact_id, status, confidence)
 VALUES
   (7, 'contact-1', 'matched', 0.98),
   (7, 'self-contact', 'matched', 0.99),
+  (8, 'self-contact', 'matched', 0.99),
   (8, NULL, 'unmatched', 0);
 
 INSERT INTO messages (rowid, chat_id, text, is_from_me, date, is_reaction, has_attachments)

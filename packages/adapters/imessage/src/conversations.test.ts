@@ -68,5 +68,23 @@ describe("iMessage conversations", () => {
       "Older inbound",
       "Latest outbound",
     ]);
+    expect(result.conversations[0]?.messages.map((message) => message.direction)).toEqual([
+      "inbound",
+      "outbound",
+    ]);
+  });
+
+  it("infers the local contact when it appears in every matched chat", () => {
+    const result = listImessageConversations();
+
+    expect(result.error).toBeNull();
+    expect(result.conversations[0]).toMatchObject({
+      contact: "Ada Lovelace",
+      linkedContact: {
+        id: "contact-1",
+        name: "Ada Lovelace",
+      },
+    });
+    expect(result.conversations[0]?.linkedContact?.id).not.toBe("self-contact");
   });
 });

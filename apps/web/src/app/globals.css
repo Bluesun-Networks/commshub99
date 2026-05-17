@@ -764,6 +764,11 @@ tr:last-child td {
   border-color: #b8ded5;
 }
 
+.message-focused {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .draft-grid {
   display: grid;
   gap: 12px;
